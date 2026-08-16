@@ -1,5 +1,6 @@
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtGui import QKeySequence
+from PyQt5.QtWidgets import QShortcut, QWidget
 
 from gridplayer.params import env
 from gridplayer.player.manager import ManagersManager
@@ -180,6 +181,14 @@ class Player(QWidget, ManagersManager):
         ]
 
         self.init()
+
+        # Custom build: preserve PgDown's original alphabetical behavior and
+        # provide an explicit random-next command. Reuse VideoBlock.shuffle_video
+        # rather than adding another playback path.
+        self.random_next_shortcut = QShortcut(QKeySequence("Ctrl+PgDown"), self)
+        self.random_next_shortcut.activated.connect(
+            self._context.commands.resolve(("active", "shuffle_video"))
+        )
 
     def process_arguments(self, argv):
         self.arguments_received.emit(argv)
