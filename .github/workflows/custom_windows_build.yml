@@ -51,6 +51,9 @@ jobs:
           python-version: ${{ env.BUILD_PYTHON_VERSION }}
           architecture: x64
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+
       - name: Install build tools
         uses: crazy-max/ghaction-chocolatey@v4
         with:
@@ -59,9 +62,7 @@ jobs:
       - name: Build GridPlayer Windows x64 packages
         env:
           BUILD_ARCH: win64
-        run: |
-          just build-win-package
-          just clean-pyinstaller-dist
+        run: just build-win-package
 
       - name: Upload Windows x64 packages
         uses: actions/upload-artifact@v7
