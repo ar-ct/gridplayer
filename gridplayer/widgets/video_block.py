@@ -168,6 +168,7 @@ class VideoBlock(QWidget):
         self._is_error = False
         self._is_active = False
         self._is_closing = False
+        self._shuffle_directory_root: Path | None = None
 
         self._title = None
         self._color = None
@@ -475,7 +476,7 @@ class VideoBlock(QWidget):
     @only_initialized
     @only_seekable
     def seek_timecode(self):
-        time_ms = QCustomSpinboxTimeInput.get_time_ms_int(
+        time_ms = QCustomSpinboxInput.get_time_ms_int(
             self.parent(),
             translate("Dialog - Enter timecode", "Enter timecode", "Header"),
         )
@@ -736,6 +737,9 @@ class VideoBlock(QWidget):
         self.video_params = snapshot.model_copy()
 
     def set_video(self, video_params: Video):
+        if self.video_params is None or video_params is not self.video_params:
+            self._shuffle_directory_root = None
+
         is_first_video = self.video_params is None
         is_options_changed = get_vlc_options(self.video_params) != get_vlc_options(
             video_params
@@ -1096,35 +1100,27 @@ class VideoBlock(QWidget):
     @only_initialized
     def set_muted(self, muted):
         self.video_params.is_muted = muted
-
         self.video_driver.audio_set_mute(self.video_params.is_muted)
-
         self.is_muted_change.emit(self.video_params.is_muted)
 
     @only_initialized
     def set_volume(self, percent):
         self.video_params.volume = round(percent, 2)
-
         self.video_driver.audio_set_volume(self.video_params.volume)
-
         self.volume_change.emit(percent)
 
     @only_initialized
     def volume_increase(self):
         self.set_muted(False)
-
         self.video_params.volume += 0.05
         self.video_params.volume = min(round(self.video_params.volume, 2), 1.0)
-
         self.set_volume(self.video_params.volume)
 
     @only_initialized
     def volume_decrease(self):
         self.set_muted(False)
-
         self.video_params.volume -= 0.05
         self.video_params.volume = max(round(self.video_params.volume, 2), 0)
-
         self.set_volume(self.video_params.volume)
 
     def play_pause(self):
@@ -1133,17 +1129,30 @@ class VideoBlock(QWidget):
     @only_initialized
     @only_local_file
     def previous_video(self):
+        self._shuffle_directory_root = None
         self.switch_video(previous_video_file(self.video_params.uri))
 
     @only_initialized
     @only_local_file
     def next_video(self):
+        self._shuffle_directory_root = None
         self.switch_video(next_video_file(self.video_params.uri))
 
     @only_initialized
     @only_local_file
     def shuffle_video(self):
-        self.switch_video(next_video_file(self.video_params.uri, is_shuffle=True))
+        if self._shuffle_directory_root is None or not self.video_params.uri.is_relative_to(
+            self._shuffle_directory_root
+        ):
+            self._shuffle_directory_root = self.video_params.uri.parent
+
+        self.switch_video(
+            next_video_file(
+                self.video_params.uri,
+                is_shuffle=True,
+                root=self._shuffle_directory_root,
+            )
+        )
 
     @only_initialized
     @only_local_file
