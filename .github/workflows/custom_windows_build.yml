@@ -29,17 +29,30 @@ jobs:
         run: uv sync --group dev
 
       - name: Run focused directory-navigation tests
-        run: uv run pytest -q tests/test_utils_next_file.py
+        run: >-
+          uv run pytest -q
+          tests/test_utils_next_file.py
+          tests/test_video_block_shuffle_root.py
 
       - name: Run remaining test suite
-        run: uv run pytest -q --ignore=tests/test_compositor.py
+        run: >-
+          uv run pytest -q
+          --ignore=tests/test_compositor.py
+          --ignore=tests/test_utils_next_file.py
+          --ignore=tests/test_video_block_shuffle_root.py
 
       - name: Lint modified Python modules
-        run: uv run ruff check gridplayer/utils/next_file.py gridplayer/player/player.py
+        run: >-
+          uv run ruff check
+          gridplayer/utils/next_file.py
+          gridplayer/widgets/video_block.py
+          gridplayer/player/player.py
 
   build_windows_x64:
     needs: test
     runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v7
 
@@ -53,6 +66,15 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+
+      - name: Install project and test dependencies
+        run: uv sync --group dev
+
+      - name: Validate directory navigation on Windows x64
+        run: >-
+          uv run pytest -q
+          tests/test_utils_next_file.py
+          tests/test_video_block_shuffle_root.py
 
       - name: Install build tools
         uses: crazy-max/ghaction-chocolatey@v4
