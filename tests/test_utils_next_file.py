@@ -55,7 +55,10 @@ def test_recursive_shuffle_keeps_explicit_original_root_after_nested_pick(
     assert second == other_branch
 
 
-def test_cached_index_is_reused_until_directory_changes(tmp_path, monkeypatch):
+def test_cached_index_is_reused_and_has_bounded_refresh(tmp_path, monkeypatch):
+    clock = 1_000_000
+    monkeypatch.setattr(next_file.time, "monotonic_ns", lambda: clock)
+
     a = _touch(tmp_path / "a.mp4")
     _touch(tmp_path / "b.mp4")
 
@@ -73,12 +76,19 @@ def test_cached_index_is_reused_until_directory_changes(tmp_path, monkeypatch):
     next_file.next_video_file(a)
     assert calls == 1
 
+    # Windows can defer directory mtime updates, so correctness must not rely on
+    # an immediate timestamp change. Once the bounded cache age is reached a
+    # rescan is mandatory on every platform.
     _touch(tmp_path / "c.mp4")
+    clock += next_file._INDEX_MAX_AGE_NS
     next_file.next_video_file(a)
     assert calls == 2
 
 
-def test_recursive_cache_detects_changes_in_nested_directory(tmp_path, monkeypatch):
+def test_recursive_cache_bounded_refresh_finds_nested_changes(tmp_path, monkeypatch):
+    clock = 1_000_000
+    monkeypatch.setattr(next_file.time, "monotonic_ns", lambda: clock)
+
     current = _touch(tmp_path / "a.mp4")
     nested_dir = tmp_path / "nested"
     _touch(nested_dir / "b.mp4")
@@ -99,8 +109,12 @@ def test_recursive_cache_detects_changes_in_nested_directory(tmp_path, monkeypat
     assert calls == 1
 
     _touch(nested_dir / "c.mp4")
+    clock += next_file._INDEX_MAX_AGE_NS
     next_file.random_video_file(current, recursive=True, root=tmp_path)
     assert calls == 2
+
+    refreshed = next_file._get_directory_index(tmp_path, recursive=True)
+    assert (nested_dir / "c.mp4").absolute() in refreshed.files
 
 
 def test_recursive_index_contains_every_supported_extension(tmp_path):
