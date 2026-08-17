@@ -89,6 +89,9 @@ jobs:
           BUILD_ARCH: win64
         run: just build-win-package
 
+      - name: Smoke-test bundled VLC with Unicode long path
+        run: python tests/windows_vlc_unicode_smoke.py dist/GridPlayer/libVLC
+
       - name: Upload Windows x64 packages
         uses: actions/upload-artifact@v7
         with:
