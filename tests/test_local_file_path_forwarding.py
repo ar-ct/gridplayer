@@ -9,6 +9,14 @@ class _FakeSettings:
         return 10
 
 
+class _FakeLog:
+    def info(self, message):
+        self.last_info = message
+
+    def debug(self, message):
+        self.last_debug = message
+
+
 class _FakeMedia:
     def add_options(self, *options):
         self.options = options
@@ -38,6 +46,7 @@ def test_local_unicode_path_is_forwarded_to_libvlc_without_reencoding(monkeypatc
     instance = _FakeInstance()
     driver = SimpleNamespace(
         instance=instance,
+        _log=_FakeLog(),
         _media_options=[],
         _event_manager=_FakeEventManager(),
         is_preparse_required=False,
