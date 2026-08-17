@@ -193,7 +193,7 @@ class Player(QWidget, ManagersManager):
         self.random_next_all_shortcut.activated.connect(self._shuffle_all_videos)
 
     def _shuffle_all_videos(self):
-        for video_block in tuple(self._context.video_blocks):
+        for video_block in self._context.video_blocks:
             video_block.shuffle_video()
 
     def process_arguments(self, argv):
