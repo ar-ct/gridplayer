@@ -16,15 +16,17 @@ class _DirectoryIndex:
 _INDEX_CACHE: dict[tuple[Path, bool], _DirectoryIndex] = {}
 
 
-def next_video_file(file: Path, is_shuffle: bool = False) -> Path | None:
+def next_video_file(
+    file: Path, is_shuffle: bool = False, root: Path | None = None
+) -> Path | None:
     """Return the next media file.
 
     Normal navigation keeps the original alphabetical, non-recursive behavior.
-    Shuffle navigation uses the current directory as the collection root and
-    includes supported media from all of its subdirectories.
+    Shuffle navigation can use an explicit collection root and includes supported
+    media from all subdirectories below that root.
     """
     if is_shuffle:
-        return random_video_file(file, recursive=True)
+        return random_video_file(file, recursive=True, root=root)
 
     index = _get_directory_index(file.parent, recursive=False)
     current_index = index.positions.get(file)
@@ -43,13 +45,17 @@ def previous_video_file(file: Path) -> Path | None:
     return index.files[(current_index - 1) % len(index.files)]
 
 
-def random_video_file(file: Path, recursive: bool = True) -> Path | None:
+def random_video_file(
+    file: Path, recursive: bool = True, root: Path | None = None
+) -> Path | None:
     """Return a random media file without immediately repeating *file*.
 
-    With ``recursive=True`` the current file's directory is treated as the
-    collection root and all supported media below it are eligible.
+    ``root`` fixes the collection boundary across successive recursive picks.
+    When omitted, the current file's directory is used for backwards-compatible
+    one-shot behavior.
     """
-    index = _get_directory_index(file.parent, recursive=recursive)
+    collection_root = root if root is not None else file.parent
+    index = _get_directory_index(collection_root, recursive=recursive)
     file_count = len(index.files)
     if file_count == 0:
         return None
