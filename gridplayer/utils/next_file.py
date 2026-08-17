@@ -14,6 +14,7 @@ class _DirectoryIndex:
 
 
 _INDEX_CACHE: dict[tuple[Path, bool], _DirectoryIndex] = {}
+_RANDOM_ROOT_BY_FILE: dict[Path, Path] = {}
 
 
 def next_video_file(
@@ -22,8 +23,8 @@ def next_video_file(
     """Return the next media file.
 
     Normal navigation keeps the original alphabetical, non-recursive behavior.
-    Shuffle navigation can use an explicit collection root and includes supported
-    media from all subdirectories below that root.
+    Shuffle navigation includes supported media from all subdirectories below
+    the collection root and remembers that root across successive random picks.
     """
     if is_shuffle:
         return random_video_file(file, recursive=True, root=root)
@@ -50,11 +51,15 @@ def random_video_file(
 ) -> Path | None:
     """Return a random media file without immediately repeating *file*.
 
-    ``root`` fixes the collection boundary across successive recursive picks.
-    When omitted, the current file's directory is used for backwards-compatible
-    one-shot behavior.
+    For recursive navigation the first file's directory becomes the collection
+    root. The selected file is associated with that root so the pool does not
+    collapse to a nested subdirectory on the next random transition.
     """
-    collection_root = root if root is not None else file.parent
+    if root is None:
+        collection_root = _RANDOM_ROOT_BY_FILE.get(file, file.parent)
+    else:
+        collection_root = root
+
     index = _get_directory_index(collection_root, recursive=recursive)
     file_count = len(index.files)
     if file_count == 0:
@@ -62,23 +67,29 @@ def random_video_file(
 
     current_index = index.positions.get(file)
     if current_index is None:
-        return random.choice(index.files)
-    if file_count == 1:
-        return index.files[0]
+        selected = random.choice(index.files)
+    elif file_count == 1:
+        selected = index.files[0]
+    else:
+        # Pick from N-1 positions and skip the current one. This is O(1), avoids
+        # copying/shuffling a potentially huge list, and guarantees no immediate
+        # repeat when another file exists.
+        random_index = random.randrange(file_count - 1)
+        if random_index >= current_index:
+            random_index += 1
+        selected = index.files[random_index]
 
-    # Pick from N-1 positions and skip the current one. This is O(1), avoids
-    # copying/shuffling a potentially huge list, and guarantees no immediate
-    # repeat when another file exists.
-    random_index = random.randrange(file_count - 1)
-    if random_index >= current_index:
-        random_index += 1
+    if recursive:
+        _RANDOM_ROOT_BY_FILE[file] = collection_root
+        _RANDOM_ROOT_BY_FILE[selected] = collection_root
 
-    return index.files[random_index]
+    return selected
 
 
 def clear_directory_index_cache() -> None:
-    """Clear cached directory indexes (primarily useful for tests)."""
+    """Clear cached navigation state (primarily useful for tests)."""
     _INDEX_CACHE.clear()
+    _RANDOM_ROOT_BY_FILE.clear()
 
 
 def _get_directory_index(root: Path, recursive: bool) -> _DirectoryIndex:
@@ -131,8 +142,6 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
                         elif recursive and entry.is_dir(follow_symlinks=False):
                             pending.append(Path(entry.path))
                     except OSError:
-                        # Preserve the old best-effort behavior when individual
-                        # filesystem entries cannot be inspected.
                         continue
         except OSError:
             continue
@@ -147,8 +156,6 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
         try:
             directory_mtimes.append((directory, directory.stat().st_mtime_ns))
         except OSError:
-            # A disappearing directory makes the just-built cache immediately
-            # stale, so a zero sentinel forces validation to fail next time.
             directory_mtimes.append((directory, 0))
 
     file_tuple = tuple(files)
