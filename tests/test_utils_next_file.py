@@ -126,9 +126,9 @@ def test_recursive_index_contains_every_supported_extension(tmp_path):
 
 
 def test_large_recursive_tree_does_not_truncate_file_count(tmp_path):
-    # Exercise a genuinely large on-disk collection.  There is deliberately no
+    # Exercise a genuinely large on-disk collection. There is deliberately no
     # scanner-side maximum; every supported file returned by os.scandir must be
-    # retained.  Keep the fixture large enough to expose accidental caps while
+    # retained. Keep the fixture large enough to expose accidental caps while
     # still being practical on CI Windows filesystems.
     file_count = 12_000
     directory_count = 60
@@ -146,15 +146,15 @@ def test_large_recursive_tree_does_not_truncate_file_count(tmp_path):
 
 
 def test_unicode_long_and_windows_safe_special_names_are_not_lost(tmp_path):
-    # Each individual path component stays below the Windows 255-character
-    # component limit, while the complete path is intentionally long enough to
-    # exercise modern long-path handling on the Windows CI runner.
+    # Keep every individual component within both Windows' character limit and
+    # POSIX's 255-byte component limit. The combined path remains intentionally
+    # much longer than the traditional Windows MAX_PATH value of 260 chars.
     long_dir_1 = "Папка_" + "Ж" * 70
     long_dir_2 = "Mixed_кириллица_Latin_" + "я" * 65
     long_name = (
-        "Очень длинное имя — Видео 🎬 [2026] # & + = ! @ $ , ; ' ( ) [ ] { } _ "
-        + "АбCd" * 28
-        + ".MP4"
+        "Видео 🎬 [2026] # & + = ! @ $ , ; ' ( ) [ ] { } _ "
+        + "LongName_" * 16
+        + "ЖЁаб.MP4"
     )
 
     special = _touch(tmp_path / long_dir_1 / long_dir_2 / long_name)
@@ -180,9 +180,9 @@ def test_random_slot_mapping_is_exactly_uniform_over_all_other_files(
     eligible = set(files) - {current}
     selected = []
 
-    # Exhaust every possible raw output from randbelow(N-1).  The skip-current
+    # Exhaust every possible raw output from randbelow(N-1). The skip-current
     # transform must map those N-1 equally likely integers one-to-one onto every
-    # other file.  This proves that sort position/name/depth cannot bias a pick.
+    # other file. This proves that sort position/name/depth cannot bias a pick.
     for raw_slot in range(len(files) - 1):
         monkeypatch.setattr(
             next_file.secrets,
