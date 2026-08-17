@@ -476,7 +476,7 @@ class VideoBlock(QWidget):
     @only_initialized
     @only_seekable
     def seek_timecode(self):
-        time_ms = QCustomSpinboxInput.get_time_ms_int(
+        time_ms = QCustomSpinboxTimeInput.get_time_ms_int(
             self.parent(),
             translate("Dialog - Enter timecode", "Enter timecode", "Header"),
         )
@@ -1100,27 +1100,35 @@ class VideoBlock(QWidget):
     @only_initialized
     def set_muted(self, muted):
         self.video_params.is_muted = muted
+
         self.video_driver.audio_set_mute(self.video_params.is_muted)
+
         self.is_muted_change.emit(self.video_params.is_muted)
 
     @only_initialized
     def set_volume(self, percent):
         self.video_params.volume = round(percent, 2)
+
         self.video_driver.audio_set_volume(self.video_params.volume)
+
         self.volume_change.emit(percent)
 
     @only_initialized
     def volume_increase(self):
         self.set_muted(False)
+
         self.video_params.volume += 0.05
         self.video_params.volume = min(round(self.video_params.volume, 2), 1.0)
+
         self.set_volume(self.video_params.volume)
 
     @only_initialized
     def volume_decrease(self):
         self.set_muted(False)
+
         self.video_params.volume -= 0.05
         self.video_params.volume = max(round(self.video_params.volume, 2), 0)
+
         self.set_volume(self.video_params.volume)
 
     def play_pause(self):
