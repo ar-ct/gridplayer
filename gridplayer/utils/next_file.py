@@ -1,9 +1,15 @@
 import os
 import secrets
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from gridplayer.params.extensions import SUPPORTED_MEDIA_EXT
+
+# Directory mtimes normally invalidate the cache immediately. Windows filesystems
+# can defer directory timestamp updates, so force a bounded periodic rescan as a
+# correctness fallback without paying the cost on every navigation action.
+_INDEX_MAX_AGE_NS = 60 * 1_000_000_000
 
 
 @dataclass(frozen=True)
@@ -11,6 +17,7 @@ class _DirectoryIndex:
     files: tuple[Path, ...]
     positions: dict[Path, int]
     directory_mtimes: tuple[tuple[Path, int], ...]
+    built_at_ns: int
 
 
 _INDEX_CACHE: dict[tuple[Path, bool], _DirectoryIndex] = {}
@@ -53,9 +60,9 @@ def random_video_file(
 ) -> Path | None:
     """Return a uniformly selected media file other than *file* when possible.
 
-    ``root`` defines the collection boundary for recursive navigation.  The
+    ``root`` defines the collection boundary for recursive navigation. The
     caller is responsible for preserving that root across successive random
-    transitions.  ``secrets.randbelow`` uses the operating system's
+    transitions. ``secrets.randbelow`` uses the operating system's
     cryptographically strong random source and introduces no modulo bias.
     """
     file = file.absolute()
@@ -72,7 +79,7 @@ def random_video_file(
     if file_count == 1:
         return index.files[0]
 
-    # Draw uniformly from N-1 slots and skip the current one.  Each other file
+    # Draw uniformly from N-1 slots and skip the current one. Each other file
     # therefore has exactly 1/(N-1) probability, regardless of name, directory,
     # sort position or nesting depth.
     random_index = secrets.randbelow(file_count - 1)
@@ -115,12 +122,10 @@ def _entry_flags(entry) -> tuple[bool, bool]:
 
 
 def _directory_index_is_current(index: _DirectoryIndex) -> bool:
-    """Validate a cached index by checking directory metadata only.
+    """Validate a cached index using metadata plus a bounded refresh fallback."""
+    if time.monotonic_ns() - index.built_at_ns >= _INDEX_MAX_AGE_NS:
+        return False
 
-    Adding, removing or renaming a file/subdirectory updates its containing
-    directory's mtime. Checking the comparatively small directory set avoids
-    re-stat'ing and re-sorting thousands of media files on every navigation.
-    """
     for directory, old_mtime_ns in index.directory_mtimes:
         if _safe_mtime_ns(directory) != old_mtime_ns:
             return False
@@ -164,4 +169,5 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
         files=file_tuple,
         positions={path: index for index, path in enumerate(file_tuple)},
         directory_mtimes=tuple(directory_mtimes),
+        built_at_ns=time.monotonic_ns(),
     )
