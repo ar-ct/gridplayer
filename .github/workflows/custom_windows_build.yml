@@ -33,6 +33,7 @@ jobs:
           uv run pytest -q
           tests/test_utils_next_file.py
           tests/test_video_block_shuffle_root.py
+          tests/test_local_file_path_forwarding.py
 
       - name: Run remaining test suite
         run: >-
@@ -40,6 +41,7 @@ jobs:
           --ignore=tests/test_compositor.py
           --ignore=tests/test_utils_next_file.py
           --ignore=tests/test_video_block_shuffle_root.py
+          --ignore=tests/test_local_file_path_forwarding.py
 
       - name: Lint modified Python modules
         run: >-
@@ -75,6 +77,7 @@ jobs:
           uv run pytest -q
           tests/test_utils_next_file.py
           tests/test_video_block_shuffle_root.py
+          tests/test_local_file_path_forwarding.py
 
       - name: Install build tools
         uses: crazy-max/ghaction-chocolatey@v4
