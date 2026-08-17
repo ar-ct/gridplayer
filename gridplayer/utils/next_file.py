@@ -105,6 +105,20 @@ def _get_directory_index(root: Path, recursive: bool) -> _DirectoryIndex:
     return index
 
 
+def _safe_mtime_ns(path: Path) -> int | None:
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return None
+
+
+def _entry_flags(entry) -> tuple[bool, bool]:
+    try:
+        return entry.is_file(follow_symlinks=False), entry.is_dir(follow_symlinks=False)
+    except OSError:
+        return False, False
+
+
 def _directory_index_is_current(index: _DirectoryIndex) -> bool:
     """Validate a cached index by checking directory metadata only.
 
@@ -113,10 +127,7 @@ def _directory_index_is_current(index: _DirectoryIndex) -> bool:
     re-stat'ing and re-sorting thousands of media files on every navigation.
     """
     for directory, old_mtime_ns in index.directory_mtimes:
-        try:
-            if directory.stat().st_mtime_ns != old_mtime_ns:
-                return False
-        except OSError:
+        if _safe_mtime_ns(directory) != old_mtime_ns:
             return False
 
     return True
@@ -134,15 +145,13 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
         try:
             with os.scandir(directory) as entries:
                 for entry in entries:
-                    try:
-                        if entry.is_file(follow_symlinks=False):
-                            path = Path(entry.path)
-                            if path.suffix[1:].lower() in SUPPORTED_MEDIA_EXT:
-                                files.append(path)
-                        elif recursive and entry.is_dir(follow_symlinks=False):
-                            pending.append(Path(entry.path))
-                    except OSError:
-                        continue
+                    is_file, is_dir = _entry_flags(entry)
+                    if is_file:
+                        path = Path(entry.path)
+                        if path.suffix[1:].lower() in SUPPORTED_MEDIA_EXT:
+                            files.append(path)
+                    elif recursive and is_dir:
+                        pending.append(Path(entry.path))
         except OSError:
             continue
 
@@ -151,12 +160,9 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
 
     files.sort()
 
-    directory_mtimes: list[tuple[Path, int]] = []
-    for directory in directories:
-        try:
-            directory_mtimes.append((directory, directory.stat().st_mtime_ns))
-        except OSError:
-            directory_mtimes.append((directory, 0))
+    directory_mtimes = [
+        (directory, _safe_mtime_ns(directory) or 0) for directory in directories
+    ]
 
     file_tuple = tuple(files)
     return _DirectoryIndex(
