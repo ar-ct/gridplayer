@@ -1,5 +1,5 @@
 import os
-import random
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,7 +14,6 @@ class _DirectoryIndex:
 
 
 _INDEX_CACHE: dict[tuple[Path, bool], _DirectoryIndex] = {}
-_RANDOM_ROOT_BY_FILE: dict[Path, Path] = {}
 
 
 def next_video_file(
@@ -24,8 +23,10 @@ def next_video_file(
 
     Normal navigation keeps the original alphabetical, non-recursive behavior.
     Shuffle navigation includes supported media from all subdirectories below
-    the collection root and remembers that root across successive random picks.
+    the explicit collection root.
     """
+    file = file.absolute()
+
     if is_shuffle:
         return random_video_file(file, recursive=True, root=root)
 
@@ -38,6 +39,7 @@ def next_video_file(
 
 
 def previous_video_file(file: Path) -> Path | None:
+    file = file.absolute()
     index = _get_directory_index(file.parent, recursive=False)
     current_index = index.positions.get(file)
     if current_index is None or not index.files:
@@ -49,16 +51,15 @@ def previous_video_file(file: Path) -> Path | None:
 def random_video_file(
     file: Path, recursive: bool = True, root: Path | None = None
 ) -> Path | None:
-    """Return a random media file without immediately repeating *file*.
+    """Return a uniformly selected media file other than *file* when possible.
 
-    For recursive navigation the first file's directory becomes the collection
-    root. The selected file is associated with that root so the pool does not
-    collapse to a nested subdirectory on the next random transition.
+    ``root`` defines the collection boundary for recursive navigation.  The
+    caller is responsible for preserving that root across successive random
+    transitions.  ``secrets.randbelow`` uses the operating system's
+    cryptographically strong random source and introduces no modulo bias.
     """
-    if root is None:
-        collection_root = _RANDOM_ROOT_BY_FILE.get(file, file.parent)
-    else:
-        collection_root = root
+    file = file.absolute()
+    collection_root = (root if root is not None else file.parent).absolute()
 
     index = _get_directory_index(collection_root, recursive=recursive)
     file_count = len(index.files)
@@ -67,29 +68,23 @@ def random_video_file(
 
     current_index = index.positions.get(file)
     if current_index is None:
-        selected = random.choice(index.files)
-    elif file_count == 1:
-        selected = index.files[0]
-    else:
-        # Pick from N-1 positions and skip the current one. This is O(1), avoids
-        # copying/shuffling a potentially huge list, and guarantees no immediate
-        # repeat when another file exists.
-        random_index = random.randrange(file_count - 1)
-        if random_index >= current_index:
-            random_index += 1
-        selected = index.files[random_index]
+        return index.files[secrets.randbelow(file_count)]
+    if file_count == 1:
+        return index.files[0]
 
-    if recursive:
-        _RANDOM_ROOT_BY_FILE[file] = collection_root
-        _RANDOM_ROOT_BY_FILE[selected] = collection_root
+    # Draw uniformly from N-1 slots and skip the current one.  Each other file
+    # therefore has exactly 1/(N-1) probability, regardless of name, directory,
+    # sort position or nesting depth.
+    random_index = secrets.randbelow(file_count - 1)
+    if random_index >= current_index:
+        random_index += 1
 
-    return selected
+    return index.files[random_index]
 
 
 def clear_directory_index_cache() -> None:
-    """Clear cached navigation state (primarily useful for tests)."""
+    """Clear cached directory indexes (primarily useful for tests)."""
     _INDEX_CACHE.clear()
-    _RANDOM_ROOT_BY_FILE.clear()
 
 
 def _get_directory_index(root: Path, recursive: bool) -> _DirectoryIndex:
