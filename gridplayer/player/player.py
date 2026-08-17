@@ -183,12 +183,18 @@ class Player(QWidget, ManagersManager):
         self.init()
 
         # Custom build: preserve PgDown's original alphabetical behavior and
-        # provide an explicit one-key random-next command on the unused End key.
-        # Reuse VideoBlock.shuffle_video rather than adding another playback path.
+        # provide explicit one-key random-next commands on unused keys.
         self.random_next_shortcut = QShortcut(QKeySequence("End"), self)
         self.random_next_shortcut.activated.connect(
             self._context.commands.resolve(("active", "shuffle_video"))
         )
+
+        self.random_next_all_shortcut = QShortcut(QKeySequence("Home"), self)
+        self.random_next_all_shortcut.activated.connect(self._shuffle_all_videos)
+
+    def _shuffle_all_videos(self):
+        for video_block in tuple(self._context.video_blocks):
+            video_block.shuffle_video()
 
     def process_arguments(self, argv):
         self.arguments_received.emit(argv)
