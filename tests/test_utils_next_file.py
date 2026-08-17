@@ -33,6 +33,21 @@ def test_shuffle_uses_subdirectories_and_never_immediately_repeats(tmp_path, mon
     assert next_file.next_video_file(current, is_shuffle=True) in {nested, deep}
 
 
+def test_recursive_shuffle_keeps_original_root_after_nested_pick(tmp_path, monkeypatch):
+    root_file = _touch(tmp_path / "a.mp4")
+    nested_file = _touch(tmp_path / "nested" / "b.mp4")
+    other_branch = _touch(tmp_path / "other" / "c.mp4")
+
+    picks = iter([0, 1])
+    monkeypatch.setattr(next_file.random, "randrange", lambda n: next(picks))
+
+    first = next_file.next_video_file(root_file, is_shuffle=True)
+    assert first == nested_file
+
+    second = next_file.next_video_file(first, is_shuffle=True)
+    assert second == other_branch
+
+
 def test_cached_index_is_reused_until_directory_changes(tmp_path, monkeypatch):
     a = _touch(tmp_path / "a.mp4")
     _touch(tmp_path / "b.mp4")
