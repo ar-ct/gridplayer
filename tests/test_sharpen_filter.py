@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import QApplication
 
 from gridplayer.dialogs.settings import SettingsDialog
 from gridplayer.dialogs.settings_sharpen import (
+    SHARPEN_DEFAULT_STRENGTH,
+    SHARPEN_STEP,
     SHARPEN_UI_MAX,
     SharpenControl,
     attach_sharpen_control,
@@ -80,9 +82,10 @@ def test_transient_preview_overrides_saved_setting_without_persisting(monkeypatc
 def test_sharpen_control_syncs_slider_and_spinbox():
     control = SharpenControl(0.10)
 
-    assert control.slider.minimum() == 0
+    assert control.enable_checkbox.isChecked()
+    assert control.slider.minimum() == round(SHARPEN_STEP * 100)
     assert control.slider.maximum() == round(SHARPEN_UI_MAX * 100)
-    assert control.spinbox.minimum() == 0.0
+    assert control.spinbox.minimum() == SHARPEN_STEP
     assert control.spinbox.maximum() == SHARPEN_UI_MAX
 
     control.slider.setValue(23)
@@ -92,7 +95,37 @@ def test_sharpen_control_syncs_slider_and_spinbox():
     assert control.slider.value() == 17
 
 
-def test_sharpen_control_previews_only_after_committed_input():
+def test_sharpen_disabled_state_keeps_light_default_strength():
+    control = SharpenControl(0.0)
+
+    assert not control.enable_checkbox.isChecked()
+    assert control.value() == 0.0
+    assert control.spinbox.value() == SHARPEN_DEFAULT_STRENGTH
+    assert not control.slider.isEnabled()
+    assert not control.spinbox.isEnabled()
+    assert not control.reset_button.isEnabled()
+
+
+def test_sharpen_enable_and_reset_emit_committed_preview():
+    control = SharpenControl(0.0)
+    previews = []
+    control.preview_requested.connect(previews.append)
+
+    control.enable_checkbox.setChecked(True)
+    assert previews == [SHARPEN_DEFAULT_STRENGTH]
+
+    control.spinbox.setValue(0.20)
+    assert previews == [SHARPEN_DEFAULT_STRENGTH]
+
+    control.reset_button.click()
+    assert control.value() == SHARPEN_DEFAULT_STRENGTH
+    assert previews[-1] == SHARPEN_DEFAULT_STRENGTH
+
+    control.enable_checkbox.setChecked(False)
+    assert previews[-1] == 0.0
+
+
+def test_sharpen_slider_and_spinbox_preview_only_after_committed_input():
     control = SharpenControl(0.10)
     previews = []
     control.preview_requested.connect(previews.append)
