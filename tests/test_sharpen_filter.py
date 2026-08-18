@@ -17,6 +17,8 @@ from gridplayer.player.managers import settings as settings_manager_module
 from gridplayer.player.managers.settings import SettingsManager
 from gridplayer.player.managers.video_blocks import VideoBlocksManager
 from gridplayer.utils import libvlc_options_parser
+from gridplayer.vlc_player.player_base import VlcPlayerBase
+from gridplayer.vlc_player.static import MediaInput
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -204,7 +206,58 @@ def test_sharpen_dialog_close_refreshes_only_when_applied_state_must_change(
     assert fake_manager.reload_video_filters.calls == reloads
 
 
-def test_video_filter_reload_reuses_video_object_and_skips_known_audio_only():
+def test_filter_refresh_reuses_video_state_with_current_position():
+    class FakeBlock:
+        def __init__(self):
+            self.is_video_initialized = True
+            self.video_tracks = {0: object()}
+            self.video_params = SimpleNamespace(current_position=123456)
+            self.set_video_calls = []
+
+        def set_video(self, video):
+            self.set_video_calls.append(video)
+
+    block = FakeBlock()
+    manager = SimpleNamespace(_ctx=SimpleNamespace(video_blocks=[block]))
+
+    VideoBlocksManager.reload_video_filters(manager)
+
+    assert block.set_video_calls == [block.video_params]
+    assert block.set_video_calls[0].current_position == 123456
+
+
+def test_vlc_initial_state_seeks_to_saved_position_while_playing():
+    video = SimpleNamespace(
+        current_position=123456,
+        is_start_random=False,
+        is_paused=False,
+    )
+    media_input = MediaInput(
+        uri="C:/video.mp4",
+        is_live=False,
+        is_audio_only=False,
+        size=(1920, 1080),
+        video=video,
+    )
+    calls = []
+    fake_player = SimpleNamespace(
+        media_input=media_input,
+        _set_pause_initial=lambda paused: calls.append(("pause", paused)),
+        _adjust_view_initial=lambda: calls.append(("view", None)),
+        _set_time_initial=lambda position: calls.append(("time", position)),
+    )
+
+    VlcPlayerBase._set_initial_state(fake_player)
+
+    assert media_input.initial_time == 123456
+    assert calls == [
+        ("pause", False),
+        ("view", None),
+        ("time", 123456),
+    ]
+
+
+def test_video_filter_reload_skips_known_audio_only_and_restarts_loading_blocks():
     class FakeBlock:
         def __init__(self, initialized, has_video, has_params=True):
             self.is_video_initialized = initialized
