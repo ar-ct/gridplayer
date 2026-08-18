@@ -1,10 +1,13 @@
 from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QDialog
 
 from gridplayer.dialogs.messagebox import QCustomMessageBox
-from gridplayer.dialogs.settings_sharpen import SHARPEN_SETTING, SettingsDialog
+from gridplayer.dialogs.settings import SettingsDialog
+from gridplayer.dialogs.settings_sharpen import SHARPEN_SETTING, attach_sharpen_control
 from gridplayer.params.theme import apply_theme
 from gridplayer.player.managers.base import ManagerBase
 from gridplayer.settings import Settings
+from gridplayer.utils.libvlc_options_parser import set_sharpen_preview
 from gridplayer.utils.qt import translate
 
 
@@ -20,6 +23,10 @@ class SettingsManager(ManagerBase):
     set_disable_mouse_wheel_events = pyqtSignal(bool)
     set_disable_overlay = pyqtSignal(bool)
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._sharpen_preview_value: float | None = None
+
     @property
     def commands(self):
         return {"settings": self.cmd_settings}
@@ -28,12 +35,19 @@ class SettingsManager(ManagerBase):
         previous_settings = Settings().get_all()
 
         dialog = SettingsDialog(self.parent())
-        dialog.sharpen_preview.connect(self._apply_sharpen_preview)
+        sharpen_control = attach_sharpen_control(
+            dialog, Settings().get(SHARPEN_SETTING)
+        )
+        self._sharpen_preview_value = None
+        sharpen_control.preview_requested.connect(self._apply_sharpen_preview)
+
         result = dialog.exec_()
+        final_sharpen = sharpen_control.value()
 
-        if result != SettingsDialog.Accepted:
-            self._restore_sharpen(previous_settings)
+        if result == QDialog.Accepted:
+            Settings().set(SHARPEN_SETTING, final_sharpen)
 
+        self._finish_sharpen_preview(result, previous_settings, final_sharpen)
         self._apply_settings(previous_settings)
 
         if self._is_restart_needed(previous_settings):
@@ -50,16 +64,26 @@ class SettingsManager(ManagerBase):
             self.reload.emit()
 
     def _apply_sharpen_preview(self, value: float):
-        Settings().set(SHARPEN_SETTING, float(value))
-        self.reload_video_filters.emit()
-
-    def _restore_sharpen(self, previous_settings):
-        previous_value = float(previous_settings[SHARPEN_SETTING])
-        if Settings().get(SHARPEN_SETTING) == previous_value:
+        value = round(float(value), 2)
+        if value == self._sharpen_preview_value:
             return
 
-        Settings().set(SHARPEN_SETTING, previous_value)
+        self._sharpen_preview_value = value
+        set_sharpen_preview(value)
         self.reload_video_filters.emit()
+
+    def _finish_sharpen_preview(self, result, previous_settings, final_value):
+        preview_value = self._sharpen_preview_value
+        set_sharpen_preview(None)
+        self._sharpen_preview_value = None
+
+        if result == QDialog.Accepted:
+            needs_refresh = preview_value != final_value
+        else:
+            needs_refresh = preview_value is not None
+
+        if needs_refresh:
+            self.reload_video_filters.emit()
 
     def _apply_settings(self, previous_settings):
         checks = {
