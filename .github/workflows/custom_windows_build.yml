@@ -28,12 +28,13 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Run focused directory-navigation tests
+      - name: Run focused custom-feature tests
         run: >-
           uv run pytest -q
           tests/test_utils_next_file.py
           tests/test_video_block_shuffle_root.py
           tests/test_local_file_path_forwarding.py
+          tests/test_sharpen_filter.py
 
       - name: Run remaining test suite
         run: >-
@@ -42,13 +43,20 @@ jobs:
           --ignore=tests/test_utils_next_file.py
           --ignore=tests/test_video_block_shuffle_root.py
           --ignore=tests/test_local_file_path_forwarding.py
+          --ignore=tests/test_sharpen_filter.py
 
       - name: Lint modified Python modules
         run: >-
           uv run ruff check
+          gridplayer/settings.py
+          gridplayer/dialogs/settings_sharpen.py
+          gridplayer/utils/libvlc_options_parser.py
           gridplayer/utils/next_file.py
           gridplayer/widgets/video_block.py
           gridplayer/player/player.py
+          gridplayer/player/managers/settings.py
+          gridplayer/player/managers/video_blocks.py
+          tests/test_sharpen_filter.py
 
   build_windows_x64:
     needs: test
@@ -88,7 +96,7 @@ jobs:
           BUILD_ARCH: win64
         run: just build-win-package
 
-      - name: Smoke-test bundled VLC with Unicode long path
+      - name: Smoke-test bundled VLC with Unicode long path and sharpen filter
         run: python tests/windows_vlc_unicode_smoke.py dist/GridPlayer/libVLC
 
       - name: Upload Windows x64 packages
