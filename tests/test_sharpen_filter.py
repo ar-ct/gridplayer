@@ -50,6 +50,11 @@ class _FakeSignal:
         self.calls += 1
 
 
+class _FakeLog:
+    def debug(self, *_args):
+        pass
+
+
 def _vlc_options(monkeypatch, sigma, transform=VideoTransform.NONE):
     monkeypatch.setattr(
         libvlc_options_parser, "Settings", lambda: _FakeSettings(sigma)
@@ -241,6 +246,7 @@ def test_vlc_initial_state_seeks_to_saved_position_while_playing():
     )
     calls = []
     fake_player = SimpleNamespace(
+        _log=_FakeLog(),
         media_input=media_input,
         _set_pause_initial=lambda paused: calls.append(("pause", paused)),
         _adjust_view_initial=lambda: calls.append(("view", None)),
