@@ -105,3 +105,29 @@ jobs:
           name: GridPlayer-custom-windows-x64
           path: dist
           if-no-files-found: error
+
+  report_status:
+    if: always()
+    needs: [test, build_windows_x64]
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Report custom CI result
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const passed =
+              '${{ needs.test.result }}' === 'success' &&
+              '${{ needs.build_windows_x64.result }}' === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: passed ? 'success' : 'failure',
+              context: 'custom_windows_build',
+              description: passed
+                ? 'Tests and Windows x64 build passed'
+                : 'Custom tests or Windows x64 build failed',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
