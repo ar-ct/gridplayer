@@ -124,12 +124,12 @@ def test_sharpen_control_is_inserted_on_video_settings_page():
     assert control.title() == "Sharpen"
 
 
-def test_video_filter_reload_reuses_video_object_and_skips_non_video_blocks():
+def test_video_filter_reload_reuses_video_object_and_skips_known_audio_only():
     class FakeBlock:
-        def __init__(self, initialized, has_video):
+        def __init__(self, initialized, has_video, has_params=True):
             self.is_video_initialized = initialized
             self.video_tracks = {0: object()} if has_video else {}
-            self.video_params = object()
+            self.video_params = object() if has_params else None
             self.set_video_calls = []
 
         def set_video(self, video):
@@ -137,13 +137,15 @@ def test_video_filter_reload_reuses_video_object_and_skips_non_video_blocks():
 
     video = FakeBlock(initialized=True, has_video=True)
     audio = FakeBlock(initialized=True, has_video=False)
-    loading = FakeBlock(initialized=False, has_video=True)
+    loading = FakeBlock(initialized=False, has_video=False)
+    empty = FakeBlock(initialized=False, has_video=False, has_params=False)
     manager = SimpleNamespace(
-        _ctx=SimpleNamespace(video_blocks=[video, audio, loading])
+        _ctx=SimpleNamespace(video_blocks=[video, audio, loading, empty])
     )
 
     VideoBlocksManager.reload_video_filters(manager)
 
     assert video.set_video_calls == [video.video_params]
     assert audio.set_video_calls == []
-    assert loading.set_video_calls == []
+    assert loading.set_video_calls == [loading.video_params]
+    assert empty.set_video_calls == []
