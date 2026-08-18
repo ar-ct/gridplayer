@@ -303,7 +303,9 @@ class VideoBlocksManager(ManagerBase):
 
     def reload_video_filters(self):
         for video_block in tuple(self._ctx.video_blocks):
-            if not video_block.is_video_initialized or not video_block.video_tracks:
+            if video_block.video_params is None:
+                continue
+            if video_block.is_video_initialized and not video_block.video_tracks:
                 continue
             video_block.set_video(video_block.video_params)
 
