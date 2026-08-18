@@ -301,6 +301,12 @@ class VideoBlocksManager(ManagerBase):
     def is_any_videos_local_file(self):
         return any(vb.is_local_file for vb in self._ctx.video_blocks.initialized)
 
+    def reload_video_filters(self):
+        for video_block in tuple(self._ctx.video_blocks):
+            if not video_block.is_video_initialized or not video_block.video_tracks:
+                continue
+            video_block.set_video(video_block.video_params)
+
     def reload_videos(self):
         if self._videos_to_reload:
             self._log.warning("Reload: operation in progress")
