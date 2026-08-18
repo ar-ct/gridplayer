@@ -1,5 +1,6 @@
 from gridplayer.models.video import Video
 from gridplayer.params.static import VideoTransform
+from gridplayer.settings import Settings
 
 TransformMap = {
     VideoTransform.ROTATE_90: "90",
@@ -13,13 +14,20 @@ TransformMap = {
 
 
 def get_vlc_options(video_params: Video | None):
-    vlc_options = []
-
     if video_params is None:
-        return vlc_options
+        return []
+
+    video_filters = []
 
     if video_params.transform != VideoTransform.NONE:
         option_str = TransformMap[video_params.transform]
-        vlc_options.append(f"--video-filter=transform{{type='{option_str}'}}")
+        video_filters.append(f"transform{{type='{option_str}'}}")
 
-    return vlc_options
+    sharpen_sigma = max(0.0, min(Settings().get("player/sharpen_sigma"), 2.0))
+    if sharpen_sigma > 0:
+        video_filters.append(f"sharpen{{sigma={sharpen_sigma:.2f}}}")
+
+    if not video_filters:
+        return []
+
+    return [f"--video-filter={':'.join(video_filters)}"]
