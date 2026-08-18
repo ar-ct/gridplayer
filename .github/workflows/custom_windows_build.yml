@@ -9,6 +9,10 @@ on:
 env:
   BUILD_PYTHON_VERSION: "3.10"
 
+concurrency:
+  group: custom-windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
