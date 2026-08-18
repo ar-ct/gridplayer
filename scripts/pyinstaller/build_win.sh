@@ -67,6 +67,7 @@ if [ ! -d "$VLC_EMBED_SRC" ]; then
 
     mkdir -p "$VLC_EMBED_SRC/plugins/video_filter"
     cp "$BUILD_DIR"/vlc-*/plugins/video_filter/libtransform_plugin.dll "$VLC_EMBED_SRC/plugins/video_filter"
+    cp "$BUILD_DIR"/vlc-*/plugins/video_filter/libsharpen_plugin.dll "$VLC_EMBED_SRC/plugins/video_filter"
 
     "$BUILD_DIR"/vlc-*/vlc-cache-gen.exe "$VLC_EMBED_SRC/plugins"
 
