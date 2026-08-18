@@ -3,7 +3,12 @@ from types import SimpleNamespace
 import pytest
 from PyQt5.QtWidgets import QApplication
 
-from gridplayer.dialogs.settings_sharpen import SHARPEN_UI_MAX, SharpenControl
+from gridplayer.dialogs.settings import SettingsDialog
+from gridplayer.dialogs.settings_sharpen import (
+    SHARPEN_UI_MAX,
+    SharpenControl,
+    attach_sharpen_control,
+)
 from gridplayer.params.static import VideoTransform
 from gridplayer.player.managers.video_blocks import VideoBlocksManager
 from gridplayer.utils import libvlc_options_parser
@@ -12,6 +17,13 @@ from gridplayer.utils import libvlc_options_parser
 @pytest.fixture(scope="module", autouse=True)
 def _qapp():
     return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture(autouse=True)
+def _clear_sharpen_preview():
+    libvlc_options_parser.set_sharpen_preview(None)
+    yield
+    libvlc_options_parser.set_sharpen_preview(None)
 
 
 class _FakeSettings:
@@ -48,6 +60,23 @@ def test_sharpen_sigma_is_clamped_to_vlc_range(monkeypatch):
     ]
 
 
+def test_transient_preview_overrides_saved_setting_without_persisting(monkeypatch):
+    monkeypatch.setattr(
+        libvlc_options_parser, "Settings", lambda: _FakeSettings(0.08)
+    )
+    video = SimpleNamespace(transform=VideoTransform.NONE)
+
+    libvlc_options_parser.set_sharpen_preview(0.21)
+    assert libvlc_options_parser.get_vlc_options(video) == [
+        "--video-filter=sharpen{sigma=0.21}"
+    ]
+
+    libvlc_options_parser.set_sharpen_preview(None)
+    assert libvlc_options_parser.get_vlc_options(video) == [
+        "--video-filter=sharpen{sigma=0.08}"
+    ]
+
+
 def test_sharpen_control_syncs_slider_and_spinbox():
     control = SharpenControl(0.10)
 
@@ -79,6 +108,20 @@ def test_sharpen_control_previews_only_after_committed_input():
 
     control.spinbox.editingFinished.emit()
     assert previews == [0.20, 0.15]
+
+
+def test_sharpen_control_is_inserted_on_video_settings_page():
+    dialog = SettingsDialog(None)
+    control = attach_sharpen_control(dialog, 0.12)
+
+    control_index = dialog.lay_page_defaults_video.indexOf(control)
+    streaming_index = dialog.lay_page_defaults_video.indexOf(dialog.label_12)
+
+    assert control.parent() is dialog.page_defaults_video
+    assert control_index >= 0
+    assert streaming_index == control_index + 1
+    assert control.value() == 0.12
+    assert control.title() == "Sharpen"
 
 
 def test_video_filter_reload_reuses_video_object_and_skips_non_video_blocks():
