@@ -26,7 +26,7 @@ class SharpenControl(QGroupBox):
 
         self.setTitle(self.tr("Sharpen"))
 
-        self.enabled = QCheckBox(self.tr("Enable"), self)
+        self.enable_checkbox = QCheckBox(self.tr("Enable"), self)
 
         self.slider = QSlider(Qt.Horizontal, self)
         self.slider.setRange(1, round(SHARPEN_UI_MAX * _SHARPEN_SLIDER_SCALE))
@@ -58,13 +58,13 @@ class SharpenControl(QGroupBox):
         hint.setWordWrap(True)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.enabled)
+        layout.addWidget(self.enable_checkbox)
         layout.addLayout(row)
         layout.addWidget(hint)
 
         self.setValue(value)
 
-        self.enabled.stateChanged.connect(self._enabled_changed)
+        self.enable_checkbox.stateChanged.connect(self._enabled_changed)
         self.slider.valueChanged.connect(self._slider_changed)
         self.spinbox.valueChanged.connect(self._spinbox_changed)
         self.slider.sliderReleased.connect(self._request_preview)
@@ -72,7 +72,7 @@ class SharpenControl(QGroupBox):
         self.reset_button.clicked.connect(self._reset_strength)
 
     def value(self) -> float:
-        if not self.enabled.isChecked():
+        if not self.enable_checkbox.isChecked():
             return 0.0
         return round(float(self.spinbox.value()), 2)
 
@@ -81,7 +81,7 @@ class SharpenControl(QGroupBox):
         is_enabled = value > 0
         strength = value if is_enabled else SHARPEN_DEFAULT_STRENGTH
 
-        self.enabled.setChecked(is_enabled)
+        self.enable_checkbox.setChecked(is_enabled)
         self.spinbox.setValue(strength)
         self.slider.setValue(round(strength * _SHARPEN_SLIDER_SCALE))
         self._set_strength_enabled(is_enabled)
