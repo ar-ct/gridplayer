@@ -74,11 +74,12 @@ class SettingsManager(ManagerBase):
 
     def _finish_sharpen_preview(self, result, previous_settings, final_value):
         preview_value = self._sharpen_preview_value
+        original_value = float(previous_settings[SHARPEN_SETTING])
         set_sharpen_preview(None)
         self._sharpen_preview_value = None
 
         if result == QDialog.Accepted:
-            needs_refresh = preview_value != final_value
+            needs_refresh = final_value != original_value and preview_value != final_value
         else:
             needs_refresh = preview_value is not None
 
