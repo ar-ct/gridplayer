@@ -92,6 +92,7 @@ class Player(QWidget, ManagersManager):
             ],
             "settings": [
                 ("reload", "video_blocks.reload_videos"),
+                ("reload_video_filters", "video_blocks.reload_video_filters"),
                 ("set_screensaver", "screensaver.screensaver_check"),
                 ("set_log_level", "log.set_log_level"),
                 ("set_log_level", "video_driver.set_log_level"),
