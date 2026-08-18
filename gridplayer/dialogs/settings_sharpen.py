@@ -1,6 +1,5 @@
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QDialog,
     QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
@@ -9,9 +8,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from gridplayer.dialogs.settings import SettingsDialog as BaseSettingsDialog
-from gridplayer.settings import Settings
 
 SHARPEN_SETTING = "player/sharpen_sigma"
 SHARPEN_UI_MAX = 0.50
@@ -87,33 +83,9 @@ class SharpenControl(QGroupBox):
         self.preview_requested.emit(self.value())
 
 
-class SettingsDialog(BaseSettingsDialog):
-    sharpen_preview = pyqtSignal(float)
-
-    def __init__(self, parent):
-        super().__init__(parent)
-
-        initial_value = Settings().get(SHARPEN_SETTING)
-        self._last_sharpen_preview = round(float(initial_value), 2)
-        self.sharpenControl = SharpenControl(initial_value, self.page_defaults_video)
-        self.sharpenControl.preview_requested.connect(self._preview_sharpen)
-
-        insert_at = self.lay_page_defaults_video.indexOf(self.label_12)
-        self.lay_page_defaults_video.insertWidget(insert_at, self.sharpenControl)
-
-    def _preview_sharpen(self, value: float) -> None:
-        value = round(float(value), 2)
-        if value == self._last_sharpen_preview:
-            return
-
-        self._last_sharpen_preview = value
-        self.sharpen_preview.emit(value)
-
-    def save_settings(self):
-        super().save_settings()
-        Settings().set(SHARPEN_SETTING, self.sharpenControl.value())
-
-    def accept(self):
-        self._preview_sharpen(self.sharpenControl.value())
-        self.save_settings()
-        QDialog.accept(self)
+def attach_sharpen_control(dialog, value: float) -> SharpenControl:
+    """Add the custom control to the existing Video settings page."""
+    control = SharpenControl(value, dialog.page_defaults_video)
+    insert_at = dialog.lay_page_defaults_video.indexOf(dialog.label_12)
+    dialog.lay_page_defaults_video.insertWidget(insert_at, control)
+    return control
