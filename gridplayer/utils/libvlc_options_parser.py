@@ -12,6 +12,13 @@ TransformMap = {
     VideoTransform.ANTITRANSPOSE: "antitranspose",
 }
 
+_SHARPEN_PREVIEW: float | None = None
+
+
+def set_sharpen_preview(value: float | None) -> None:
+    global _SHARPEN_PREVIEW
+    _SHARPEN_PREVIEW = None if value is None else float(value)
+
 
 def get_vlc_options(video_params: Video | None):
     if video_params is None:
@@ -23,7 +30,12 @@ def get_vlc_options(video_params: Video | None):
         option_str = TransformMap[video_params.transform]
         video_filters.append(f"transform{{type='{option_str}'}}")
 
-    sharpen_sigma = max(0.0, min(Settings().get("player/sharpen_sigma"), 2.0))
+    sharpen_sigma = (
+        Settings().get("player/sharpen_sigma")
+        if _SHARPEN_PREVIEW is None
+        else _SHARPEN_PREVIEW
+    )
+    sharpen_sigma = max(0.0, min(float(sharpen_sigma), 2.0))
     if sharpen_sigma > 0:
         video_filters.append(f"sharpen{{sigma={sharpen_sigma:.2f}}}")
 
