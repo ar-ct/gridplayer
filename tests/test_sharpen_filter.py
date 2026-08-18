@@ -1,17 +1,20 @@
 from types import SimpleNamespace
 
 import pytest
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QDialog
 
 from gridplayer.dialogs.settings import SettingsDialog
 from gridplayer.dialogs.settings_sharpen import (
     SHARPEN_DEFAULT_STRENGTH,
+    SHARPEN_SETTING,
     SHARPEN_STEP,
     SHARPEN_UI_MAX,
     SharpenControl,
     attach_sharpen_control,
 )
 from gridplayer.params.static import VideoTransform
+from gridplayer.player.managers import settings as settings_manager_module
+from gridplayer.player.managers.settings import SettingsManager
 from gridplayer.player.managers.video_blocks import VideoBlocksManager
 from gridplayer.utils import libvlc_options_parser
 
@@ -33,8 +36,16 @@ class _FakeSettings:
         self.sigma = sigma
 
     def get(self, setting):
-        assert setting == "player/sharpen_sigma"
+        assert setting == SHARPEN_SETTING
         return self.sigma
+
+
+class _FakeSignal:
+    def __init__(self):
+        self.calls = 0
+
+    def emit(self):
+        self.calls += 1
 
 
 def _vlc_options(monkeypatch, sigma, transform=VideoTransform.NONE):
@@ -155,6 +166,42 @@ def test_sharpen_control_is_inserted_on_video_settings_page():
     assert streaming_index == control_index + 1
     assert control.value() == 0.12
     assert control.title() == "Sharpen"
+
+
+@pytest.mark.parametrize(
+    ("result", "original", "preview", "final", "reloads"),
+    [
+        (QDialog.Accepted, 0.10, None, 0.10, 0),
+        (QDialog.Accepted, 0.10, None, 0.20, 1),
+        (QDialog.Accepted, 0.10, 0.20, 0.20, 0),
+        (QDialog.Accepted, 0.10, 0.20, 0.10, 1),
+        (QDialog.Rejected, 0.10, None, 0.20, 0),
+        (QDialog.Rejected, 0.10, 0.20, 0.20, 1),
+        (QDialog.Rejected, 0.10, 0.10, 0.20, 0),
+    ],
+)
+def test_sharpen_dialog_close_refreshes_only_when_applied_state_must_change(
+    monkeypatch, result, original, preview, final, reloads
+):
+    cleared = []
+    monkeypatch.setattr(
+        settings_manager_module, "set_sharpen_preview", cleared.append
+    )
+    fake_manager = SimpleNamespace(
+        _sharpen_preview_value=preview,
+        reload_video_filters=_FakeSignal(),
+    )
+
+    SettingsManager._finish_sharpen_preview(
+        fake_manager,
+        result,
+        {SHARPEN_SETTING: original},
+        final,
+    )
+
+    assert cleared == [None]
+    assert fake_manager._sharpen_preview_value is None
+    assert fake_manager.reload_video_filters.calls == reloads
 
 
 def test_video_filter_reload_reuses_video_object_and_skips_known_audio_only():
