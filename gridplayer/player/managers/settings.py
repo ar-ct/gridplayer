@@ -1,7 +1,7 @@
 from PyQt5.QtCore import pyqtSignal
 
 from gridplayer.dialogs.messagebox import QCustomMessageBox
-from gridplayer.dialogs.settings import SettingsDialog
+from gridplayer.dialogs.settings_sharpen import SHARPEN_SETTING, SettingsDialog
 from gridplayer.params.theme import apply_theme
 from gridplayer.player.managers.base import ManagerBase
 from gridplayer.settings import Settings
@@ -10,6 +10,7 @@ from gridplayer.utils.qt import translate
 
 class SettingsManager(ManagerBase):
     reload = pyqtSignal()
+    reload_video_filters = pyqtSignal()
     set_screensaver = pyqtSignal(int)
     set_log_level = pyqtSignal(int)
     set_log_level_vlc = pyqtSignal(int)
@@ -26,7 +27,12 @@ class SettingsManager(ManagerBase):
     def cmd_settings(self):
         previous_settings = Settings().get_all()
 
-        SettingsDialog(self.parent()).exec_()
+        dialog = SettingsDialog(self.parent())
+        dialog.sharpen_preview.connect(self._apply_sharpen_preview)
+        result = dialog.exec_()
+
+        if result != SettingsDialog.Accepted:
+            self._restore_sharpen(previous_settings)
 
         self._apply_settings(previous_settings)
 
@@ -42,6 +48,18 @@ class SettingsManager(ManagerBase):
 
         if self._is_reload_needed(previous_settings):
             self.reload.emit()
+
+    def _apply_sharpen_preview(self, value: float):
+        Settings().set(SHARPEN_SETTING, float(value))
+        self.reload_video_filters.emit()
+
+    def _restore_sharpen(self, previous_settings):
+        previous_value = float(previous_settings[SHARPEN_SETTING])
+        if Settings().get(SHARPEN_SETTING) == previous_value:
+            return
+
+        Settings().set(SHARPEN_SETTING, previous_value)
+        self.reload_video_filters.emit()
 
     def _apply_settings(self, previous_settings):
         checks = {
