@@ -224,3 +224,113 @@ def test_relative_input_path_is_normalized_before_lookup(tmp_path, monkeypatch):
         assert next_file.next_video_file(Path("a.mp4")) == current
     finally:
         os.chdir(old_cwd)
+
+
+class _FailAfterFirstEntry:
+    """Wrap scandir and fail once after exposing one real directory entry."""
+
+    def __init__(self, entries):
+        self._entries = entries
+        self._iterator = None
+        self._yielded = False
+
+    def __enter__(self):
+        self._iterator = iter(self._entries.__enter__())
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return self._entries.__exit__(exc_type, exc_value, traceback)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._yielded:
+            raise OSError("simulated transient directory enumeration failure")
+        self._yielded = True
+        return next(self._iterator)
+
+
+def test_incomplete_recursive_scan_is_never_cached_and_recovers(tmp_path, monkeypatch):
+    expected = {
+        _touch(tmp_path / branch / f"clip_{index}.mp4")
+        for branch in ("alpha", "beta", "gamma")
+        for index in range(3)
+    }
+    root = tmp_path.absolute()
+    real_scandir = os.scandir
+    root_failures = 1
+
+    def flaky_scandir(path):
+        nonlocal root_failures
+        entries = real_scandir(path)
+        if Path(path).absolute() == root and root_failures:
+            root_failures -= 1
+            return _FailAfterFirstEntry(entries)
+        return entries
+
+    with monkeypatch.context() as patch:
+        patch.setattr(next_file.os, "scandir", flaky_scandir)
+
+        first = next_file._get_directory_index(root, recursive=True)
+        cache_key = (root, True)
+
+        assert first.is_complete is False
+        assert 0 < len(first.files) < len(expected)
+        assert cache_key not in next_file._INDEX_CACHE
+
+        recovered = next_file._get_directory_index(root, recursive=True)
+
+        assert recovered.is_complete is True
+        assert set(recovered.files) == expected
+        assert next_file._INDEX_CACHE[cache_key] is recovered
+
+        reused = next_file._get_directory_index(root, recursive=True)
+        assert reused is recovered
+
+
+def test_failed_refresh_keeps_last_known_good_index_but_retries_next_time(
+    tmp_path, monkeypatch
+):
+    clock = 1_000_000
+    monkeypatch.setattr(next_file.time, "monotonic_ns", lambda: clock)
+
+    expected = {
+        _touch(tmp_path / branch / f"clip_{index}.mp4")
+        for branch in ("alpha", "beta", "gamma")
+        for index in range(3)
+    }
+    root = tmp_path.absolute()
+    cache_key = (root, True)
+    known_good = next_file._get_directory_index(root, recursive=True)
+
+    assert known_good.is_complete is True
+    assert set(known_good.files) == expected
+
+    clock += next_file._INDEX_MAX_AGE_NS
+    real_scandir = os.scandir
+    root_failures = 1
+
+    def flaky_scandir(path):
+        nonlocal root_failures
+        entries = real_scandir(path)
+        if Path(path).absolute() == root and root_failures:
+            root_failures -= 1
+            return _FailAfterFirstEntry(entries)
+        return entries
+
+    with monkeypatch.context() as patch:
+        patch.setattr(next_file.os, "scandir", flaky_scandir)
+
+        fallback = next_file._get_directory_index(root, recursive=True)
+
+        assert fallback is known_good
+        assert next_file._INDEX_CACHE[cache_key] is known_good
+        assert root_failures == 0
+
+        recovered = next_file._get_directory_index(root, recursive=True)
+
+        assert recovered is not known_good
+        assert recovered.is_complete is True
+        assert set(recovered.files) == expected
+        assert next_file._INDEX_CACHE[cache_key] is recovered

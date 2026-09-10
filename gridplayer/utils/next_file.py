@@ -18,6 +18,7 @@ class _DirectoryIndex:
     positions: dict[Path, int]
     directory_mtimes: tuple[tuple[Path, int], ...]
     built_at_ns: int
+    is_complete: bool
 
 
 _INDEX_CACHE: dict[tuple[Path, bool], _DirectoryIndex] = {}
@@ -103,7 +104,20 @@ def _get_directory_index(root: Path, recursive: bool) -> _DirectoryIndex:
         return cached
 
     index = _scan_directory(root, recursive)
-    _INDEX_CACHE[cache_key] = index
+
+    # A transient filesystem error must never poison the cache with a partial
+    # directory tree. Preserve a previous complete snapshot when available and
+    # retry the scan on the next navigation action.
+    if index.is_complete:
+        _INDEX_CACHE[cache_key] = index
+        return index
+
+    if cached is not None:
+        return cached
+
+    # On the first scan there is no last-known-good snapshot. The partial result
+    # can still make the current action useful, but it deliberately remains
+    # uncached so the very next action retries the full traversal.
     return index
 
 
@@ -115,14 +129,17 @@ def _safe_mtime_ns(path: Path) -> int | None:
 
 
 def _entry_flags(entry) -> tuple[bool, bool]:
-    try:
-        return entry.is_file(follow_symlinks=False), entry.is_dir(follow_symlinks=False)
-    except OSError:
-        return False, False
+    # Let OSError propagate to _scan_directory so a failed DirEntry metadata
+    # query marks the entire traversal incomplete instead of silently dropping
+    # one branch and caching the truncated result.
+    return entry.is_file(follow_symlinks=False), entry.is_dir(follow_symlinks=False)
 
 
 def _directory_index_is_current(index: _DirectoryIndex) -> bool:
     """Validate a cached index using metadata plus a bounded refresh fallback."""
+    if not index.is_complete:
+        return False
+
     if time.monotonic_ns() - index.built_at_ns >= _INDEX_MAX_AGE_NS:
         return False
 
@@ -137,6 +154,7 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
     files: list[Path] = []
     directories: list[Path] = []
     pending = [root]
+    is_complete = True
 
     while pending:
         directory = pending.pop()
@@ -153,16 +171,22 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
                     elif recursive and is_dir:
                         pending.append(Path(entry.path))
         except OSError:
-            continue
+            # Keep traversing directories that were already discovered, but do
+            # not allow this partial result to become a trusted cache entry.
+            is_complete = False
 
         if not recursive:
             break
 
     files.sort()
 
-    directory_mtimes = [
-        (directory, _safe_mtime_ns(directory) or 0) for directory in directories
-    ]
+    directory_mtimes = []
+    for directory in directories:
+        mtime_ns = _safe_mtime_ns(directory)
+        if mtime_ns is None:
+            is_complete = False
+            mtime_ns = 0
+        directory_mtimes.append((directory, mtime_ns))
 
     file_tuple = tuple(files)
     return _DirectoryIndex(
@@ -170,4 +194,5 @@ def _scan_directory(root: Path, recursive: bool) -> _DirectoryIndex:
         positions={path: index for index, path in enumerate(file_tuple)},
         directory_mtimes=tuple(directory_mtimes),
         built_at_ns=time.monotonic_ns(),
+        is_complete=is_complete,
     )
