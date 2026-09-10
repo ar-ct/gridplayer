@@ -25,14 +25,12 @@ from gridplayer.player.managers.stream_proxy import StreamProxyManager
 from gridplayer.player.managers.video_blocks import VideoBlocksManager
 from gridplayer.player.managers.video_driver import VideoDriverManager
 from gridplayer.player.managers.window_state import WindowStateManager
-
-GLOBAL_PLAYBACK_RATE_MIN_PERCENT = 50
-GLOBAL_PLAYBACK_RATE_MAX_PERCENT = 200
-GLOBAL_PLAYBACK_RATE_STEP_PERCENT = 10
-GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT = 100
-GLOBAL_PLAYBACK_RATE_INCREASE_KEY = "Shift+Up"
-GLOBAL_PLAYBACK_RATE_DECREASE_KEY = "Shift+Down"
-GLOBAL_PLAYBACK_RATE_RESET_KEY = "Insert"
+from gridplayer.utils.playback_rate import (
+    GLOBAL_PLAYBACK_RATE_DECREASE_KEY,
+    GLOBAL_PLAYBACK_RATE_INCREASE_KEY,
+    GLOBAL_PLAYBACK_RATE_RESET_KEY,
+    GlobalPlaybackRateController,
+)
 
 
 class Player(QWidget, ManagersManager):
@@ -43,11 +41,6 @@ class Player(QWidget, ManagersManager):
 
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
-
-        # Custom build: global playback speed is intentionally runtime-only.
-        # It is never written to Settings and starts at 100% for every process.
-        self._global_playback_rate_percent = GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
-        self._global_rate_known_block_ids = set()
 
         self.managers = {
             "video_driver": VideoDriverManager,
@@ -206,97 +199,44 @@ class Player(QWidget, ManagersManager):
         self.random_next_all_shortcut = QShortcut(QKeySequence("Home"), self)
         self.random_next_all_shortcut.activated.connect(self._shuffle_all_videos)
 
-        # Custom build: global playback-rate shortcuts deliberately bypass the
-        # application's menu/keymap and affect every current video block.
+        # Custom build: one runtime-only playback rate for every cell. The
+        # controller is deliberately not backed by Settings, so every process
+        # starts at 100% and closing the application discards the current rate.
+        self.global_playback_rate = GlobalPlaybackRateController(
+            lambda: self._context.video_blocks
+        )
+
         self.global_rate_increase_shortcut = QShortcut(
             QKeySequence(GLOBAL_PLAYBACK_RATE_INCREASE_KEY), self
         )
         self.global_rate_increase_shortcut.activated.connect(
-            self._increase_global_playback_rate
+            self.global_playback_rate.increase
         )
 
         self.global_rate_decrease_shortcut = QShortcut(
             QKeySequence(GLOBAL_PLAYBACK_RATE_DECREASE_KEY), self
         )
         self.global_rate_decrease_shortcut.activated.connect(
-            self._decrease_global_playback_rate
+            self.global_playback_rate.decrease
         )
 
         self.global_rate_reset_shortcut = QShortcut(
             QKeySequence(GLOBAL_PLAYBACK_RATE_RESET_KEY), self
         )
         self.global_rate_reset_shortcut.activated.connect(
-            self._reset_global_playback_rate
+            self.global_playback_rate.reset
         )
 
-        # New blocks inherit the current runtime rate. Tracking block IDs avoids
-        # unexpectedly resetting existing per-cell C/X/Z adjustments when a
-        # different block is merely closed.
+        # New blocks inherit the current runtime rate. Existing blocks are not
+        # reset merely because another block was closed.
         self._managers_inst["video_blocks"].video_count_changed.connect(
-            self._apply_global_rate_to_new_blocks
+            self.global_playback_rate.apply_to_new_blocks
         )
-        self._apply_global_rate_to_new_blocks()
+        self.global_playback_rate.apply_to_new_blocks()
 
     def _shuffle_all_videos(self):
         for video_block in self._context.video_blocks:
             video_block.shuffle_video()
-
-    @staticmethod
-    def _apply_rate_to_video_block(video_block, rate):
-        if video_block.video_params is None:
-            return
-
-        # Store the runtime rate in the in-memory Video model so the same cell
-        # keeps it when its file changes. Nothing is written to Settings.
-        video_block.video_params.rate = rate
-
-        # A block that is still loading will apply video_params.rate in
-        # load_video_finish(). Initialized blocks are updated immediately.
-        if video_block.is_video_initialized:
-            video_block.set_rate(rate)
-
-    def _set_global_playback_rate_percent(self, percent):
-        self._global_playback_rate_percent = max(
-            GLOBAL_PLAYBACK_RATE_MIN_PERCENT,
-            min(int(percent), GLOBAL_PLAYBACK_RATE_MAX_PERCENT),
-        )
-        rate = self._global_playback_rate_percent / 100.0
-
-        current_ids = set()
-        for video_block in self._context.video_blocks:
-            current_ids.add(video_block.id)
-            Player._apply_rate_to_video_block(video_block, rate)
-
-        self._global_rate_known_block_ids = current_ids
-
-    def _increase_global_playback_rate(self):
-        Player._set_global_playback_rate_percent(
-            self,
-            self._global_playback_rate_percent + GLOBAL_PLAYBACK_RATE_STEP_PERCENT,
-        )
-
-    def _decrease_global_playback_rate(self):
-        Player._set_global_playback_rate_percent(
-            self,
-            self._global_playback_rate_percent - GLOBAL_PLAYBACK_RATE_STEP_PERCENT,
-        )
-
-    def _reset_global_playback_rate(self):
-        Player._set_global_playback_rate_percent(
-            self, GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
-        )
-
-    def _apply_global_rate_to_new_blocks(self, _video_count=None):
-        rate = self._global_playback_rate_percent / 100.0
-        current_ids = set()
-
-        for video_block in self._context.video_blocks:
-            current_ids.add(video_block.id)
-            if video_block.id in self._global_rate_known_block_ids:
-                continue
-            Player._apply_rate_to_video_block(video_block, rate)
-
-        self._global_rate_known_block_ids = current_ids
 
     def process_arguments(self, argv):
         self.arguments_received.emit(argv)
