@@ -1,7 +1,15 @@
 from types import SimpleNamespace
 
 from gridplayer.params.actions import ACTIONS
-from gridplayer.player import player as player_module
+from gridplayer.utils.playback_rate import (
+    GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT,
+    GLOBAL_PLAYBACK_RATE_DECREASE_KEY,
+    GLOBAL_PLAYBACK_RATE_INCREASE_KEY,
+    GLOBAL_PLAYBACK_RATE_MAX_PERCENT,
+    GLOBAL_PLAYBACK_RATE_MIN_PERCENT,
+    GLOBAL_PLAYBACK_RATE_RESET_KEY,
+    GlobalPlaybackRateController,
+)
 
 
 class DummyVideoBlock:
@@ -19,14 +27,9 @@ class DummyVideoBlock:
         self.set_rate_calls.append(rate)
 
 
-def make_dummy_player(
-    blocks=(), *, percent=player_module.GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
-):
-    return SimpleNamespace(
-        _global_playback_rate_percent=percent,
-        _global_rate_known_block_ids=set(),
-        _context=SimpleNamespace(video_blocks=list(blocks)),
-    )
+def make_controller(blocks=()):
+    current_blocks = list(blocks)
+    return GlobalPlaybackRateController(lambda: current_blocks), current_blocks
 
 
 def default_action_keys():
@@ -40,19 +43,27 @@ def default_action_keys():
 
 def test_requested_global_rate_hotkeys_are_unused_by_default_actions():
     keys = default_action_keys()
-    assert player_module.GLOBAL_PLAYBACK_RATE_INCREASE_KEY not in keys
-    assert player_module.GLOBAL_PLAYBACK_RATE_DECREASE_KEY not in keys
-    assert player_module.GLOBAL_PLAYBACK_RATE_RESET_KEY not in keys
+    assert GLOBAL_PLAYBACK_RATE_INCREASE_KEY not in keys
+    assert GLOBAL_PLAYBACK_RATE_DECREASE_KEY not in keys
+    assert GLOBAL_PLAYBACK_RATE_RESET_KEY not in keys
+
+
+def test_global_rate_defaults_to_100_percent():
+    controller, _ = make_controller()
+
+    assert controller.percent == GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
+    assert controller.rate == 1.0
 
 
 def test_global_rate_is_applied_to_all_loaded_and_loading_blocks():
     loaded = DummyVideoBlock("loaded")
     loading = DummyVideoBlock("loading", initialized=False)
-    player = make_dummy_player((loaded, loading))
+    controller, _ = make_controller((loaded, loading))
 
-    player_module.Player._set_global_playback_rate_percent(player, 130)
+    controller.set_percent(130)
 
-    assert player._global_playback_rate_percent == 130
+    assert controller.percent == 130
+    assert controller.rate == 1.3
     assert loaded.video_params.rate == 1.3
     assert loaded.set_rate_calls == [1.3]
     assert loading.video_params.rate == 1.3
@@ -61,66 +72,88 @@ def test_global_rate_is_applied_to_all_loaded_and_loading_blocks():
 
 def test_global_rate_clamps_to_50_through_200_percent():
     block = DummyVideoBlock("block")
-    player = make_dummy_player((block,))
+    controller, _ = make_controller((block,))
 
-    player_module.Player._set_global_playback_rate_percent(player, 10)
-    assert (
-        player._global_playback_rate_percent
-        == player_module.GLOBAL_PLAYBACK_RATE_MIN_PERCENT
-    )
+    controller.set_percent(10)
+    assert controller.percent == GLOBAL_PLAYBACK_RATE_MIN_PERCENT
+    assert controller.rate == 0.5
     assert block.video_params.rate == 0.5
 
-    player_module.Player._set_global_playback_rate_percent(player, 999)
-    assert (
-        player._global_playback_rate_percent
-        == player_module.GLOBAL_PLAYBACK_RATE_MAX_PERCENT
-    )
+    controller.set_percent(999)
+    assert controller.percent == GLOBAL_PLAYBACK_RATE_MAX_PERCENT
+    assert controller.rate == 2.0
     assert block.video_params.rate == 2.0
 
 
 def test_global_rate_changes_in_exact_ten_percent_steps_and_resets():
     block = DummyVideoBlock("block")
-    player = make_dummy_player((block,))
+    controller, _ = make_controller((block,))
 
-    player_module.Player._increase_global_playback_rate(player)
-    assert player._global_playback_rate_percent == 110
+    controller.increase()
+    assert controller.percent == 110
     assert block.video_params.rate == 1.1
 
-    player_module.Player._decrease_global_playback_rate(player)
-    assert player._global_playback_rate_percent == 100
+    controller.decrease()
+    assert controller.percent == 100
     assert block.video_params.rate == 1.0
 
-    player_module.Player._set_global_playback_rate_percent(player, 170)
-    player_module.Player._reset_global_playback_rate(player)
-    assert (
-        player._global_playback_rate_percent
-        == player_module.GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
-    )
+    controller.set_percent(170)
+    controller.reset()
+    assert controller.percent == GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
     assert block.video_params.rate == 1.0
+
+
+def test_repeated_steps_stop_exactly_at_requested_limits():
+    block = DummyVideoBlock("block")
+    controller, _ = make_controller((block,))
+
+    for _ in range(20):
+        controller.decrease()
+    assert controller.percent == 50
+    assert block.video_params.rate == 0.5
+
+    for _ in range(30):
+        controller.increase()
+    assert controller.percent == 200
+    assert block.video_params.rate == 2.0
 
 
 def test_new_blocks_inherit_current_runtime_rate_without_resetting_old_blocks():
-    old = DummyVideoBlock("old", rate=1.6)
-    new = DummyVideoBlock("new", rate=1.0)
-    player = make_dummy_player((old, new), percent=140)
-    player._global_rate_known_block_ids = {"old"}
+    old = DummyVideoBlock("old", rate=1.0)
+    controller, blocks = make_controller((old,))
+    controller.set_percent(140)
 
-    player_module.Player._apply_global_rate_to_new_blocks(player)
+    # Simulate the existing single-cell C/X/Z controls changing only this cell.
+    old.video_params.rate = 1.6
+    old.set_rate_calls.clear()
+
+    new = DummyVideoBlock("new", rate=1.0)
+    blocks.append(new)
+    controller.apply_to_new_blocks()
 
     assert old.video_params.rate == 1.6
     assert old.set_rate_calls == []
     assert new.video_params.rate == 1.4
     assert new.set_rate_calls == [1.4]
-    assert player._global_rate_known_block_ids == {"old", "new"}
 
 
 def test_fresh_runtime_forces_new_blocks_back_to_100_percent():
     # Simulate a Video object carrying a previously saved non-default rate.
     block = DummyVideoBlock("new-run", rate=1.8)
-    player = make_dummy_player((block,))
+    controller, _ = make_controller((block,))
 
-    player_module.Player._apply_global_rate_to_new_blocks(player)
+    controller.apply_to_new_blocks()
 
-    assert player._global_playback_rate_percent == 100
+    assert controller.percent == 100
     assert block.video_params.rate == 1.0
     assert block.set_rate_calls == [1.0]
+
+
+def test_live_video_model_tracks_global_rate_without_forcing_driver_rate():
+    live = DummyVideoBlock("live", rate=1.0, is_live=True)
+    controller, _ = make_controller((live,))
+
+    controller.set_percent(150)
+
+    assert live.video_params.rate == 1.5
+    assert live.set_rate_calls == []
