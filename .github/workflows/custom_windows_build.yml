@@ -39,6 +39,7 @@ jobs:
           tests/test_video_block_shuffle_root.py
           tests/test_local_file_path_forwarding.py
           tests/test_sharpen_filter.py
+          tests/test_global_playback_rate.py
 
       - name: Run remaining test suite
         run: >-
@@ -48,6 +49,7 @@ jobs:
           --ignore=tests/test_video_block_shuffle_root.py
           --ignore=tests/test_local_file_path_forwarding.py
           --ignore=tests/test_sharpen_filter.py
+          --ignore=tests/test_global_playback_rate.py
 
       - name: Lint modified Python modules
         run: >-
@@ -62,6 +64,7 @@ jobs:
           gridplayer/player/managers/video_blocks.py
           tests/test_sharpen_filter.py
           tests/test_video_block_shuffle_root.py
+          tests/test_global_playback_rate.py
 
   build_windows_x64:
     needs: test
@@ -85,11 +88,12 @@ jobs:
       - name: Install project and test dependencies
         run: uv sync --group dev
 
-      - name: Validate directory navigation on Windows x64
+      - name: Validate custom controls and directory navigation on Windows x64
         run: >-
           uv run pytest -q
           tests/test_utils_next_file.py
           tests/test_video_block_shuffle_root.py
+          tests/test_global_playback_rate.py
 
       - name: Install build tools
         uses: crazy-max/ghaction-chocolatey@v4
