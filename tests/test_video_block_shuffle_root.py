@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import gridplayer.widgets.video_block as video_block
+from gridplayer.params.static import VideoRepeat
 
 
 class _DummyVideoBlock:
@@ -16,6 +17,11 @@ class _DummyVideoBlock:
     def switch_video(self, path: Path):
         self.switched_to.append(path)
         self.video_params.uri = path
+
+
+class _RepeatDirectoryBlock(_DummyVideoBlock):
+    def next_video(self):
+        return video_block.VideoBlock.next_video(self)
 
 
 class _FakeSignal:
@@ -115,6 +121,37 @@ def test_normal_next_does_not_narrow_established_shuffle_root(tmp_path, monkeypa
     assert block._shuffle_directory_root == collection
 
 
+def test_repeat_directory_eof_does_not_narrow_established_shuffle_root(
+    tmp_path, monkeypatch
+):
+    collection = tmp_path / "collection"
+    nested = collection / "nested"
+    current = nested / "b.mp4"
+    sequential = nested / "c.mp4"
+    random_pick = collection / "other" / "d.mp4"
+    block = _RepeatDirectoryBlock(current)
+    block._shuffle_directory_root = collection
+    block.video_params.repeat_mode = VideoRepeat.DIR
+    block.video_params.loop_end = None
+    block.video_params.is_start_random = False
+    shuffle_roots = []
+
+    def fake_next(file, is_shuffle=False, root=None):
+        if is_shuffle:
+            shuffle_roots.append(root)
+            return random_pick
+        return sequential
+
+    monkeypatch.setattr(video_block, "next_video_file", fake_next)
+
+    video_block.VideoBlock.loop_end_action(block)
+    video_block.VideoBlock.shuffle_video(block)
+
+    assert block.switched_to == [sequential, random_pick]
+    assert shuffle_roots == [collection]
+    assert block._shuffle_directory_root == collection
+
+
 def test_normal_previous_does_not_narrow_established_shuffle_root(
     tmp_path, monkeypatch
 ):
@@ -158,6 +195,24 @@ def test_set_video_preserves_shuffle_root_for_same_collection_reload(
     assert block._shuffle_directory_root == collection
     assert block.video_params is nested_video
     assert block.reset_calls == 0
+    assert len(block.load_video.calls) == 1
+
+
+def test_set_video_preserves_shuffle_root_for_new_video_inside_collection(
+    tmp_path, monkeypatch
+):
+    collection = tmp_path / "collection"
+    old_video = _local_video(collection / "a.mp4")
+    nested_video = _local_video(collection / "nested" / "b.mp4")
+    block = _SetVideoDummy(video_params=old_video, root=collection)
+
+    monkeypatch.setattr(video_block, "get_vlc_options", lambda _video: [])
+
+    video_block.VideoBlock.set_video(block, nested_video)
+
+    assert block._shuffle_directory_root == collection
+    assert block.video_params is nested_video
+    assert block.reset_calls == 1
     assert len(block.load_video.calls) == 1
 
 
