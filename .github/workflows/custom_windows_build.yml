@@ -13,7 +13,85 @@ concurrency:
   group: custom-windows-build-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
+  apply_shuffle_root_fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Apply minimal shuffle-root lifecycle fix
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("gridplayer/widgets/video_block.py")
+          source = path.read_text(encoding="utf-8")
+
+          old_set_video = (
+              "    def set_video(self, video_params: Video):\n"
+              "        if self.video_params is None or video_params is not self.video_params:\n"
+              "            self._shuffle_directory_root = None\n"
+              "\n"
+          )
+          new_set_video = (
+              "    def set_video(self, video_params: Video):\n"
+              "        if self._shuffle_directory_root is not None and (\n"
+              "            not video_params.is_local_file\n"
+              "            or not video_params.uri.is_relative_to(self._shuffle_directory_root)\n"
+              "        ):\n"
+              "            self._shuffle_directory_root = None\n"
+              "\n"
+          )
+
+          old_sequential_navigation = (
+              "    @only_initialized\n"
+              "    @only_local_file\n"
+              "    def previous_video(self):\n"
+              "        self._shuffle_directory_root = None\n"
+              "        self.switch_video(previous_video_file(self.video_params.uri))\n"
+              "\n"
+              "    @only_initialized\n"
+              "    @only_local_file\n"
+              "    def next_video(self):\n"
+              "        self._shuffle_directory_root = None\n"
+              "        self.switch_video(next_video_file(self.video_params.uri))\n"
+          )
+          new_sequential_navigation = (
+              "    @only_initialized\n"
+              "    @only_local_file\n"
+              "    def previous_video(self):\n"
+              "        self.switch_video(previous_video_file(self.video_params.uri))\n"
+              "\n"
+              "    @only_initialized\n"
+              "    @only_local_file\n"
+              "    def next_video(self):\n"
+              "        self.switch_video(next_video_file(self.video_params.uri))\n"
+          )
+
+          replacements = [
+              (old_set_video, new_set_video),
+              (old_sequential_navigation, new_sequential_navigation),
+          ]
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise RuntimeError("Expected exactly one source fragment to patch")
+              source = source.replace(old, new)
+
+          path.write_text(source, encoding="utf-8")
+
+      - name: Validate and commit source patch
+        run: |
+          python -m compileall -q gridplayer/widgets/video_block.py
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gridplayer/widgets/video_block.py
+          git commit -m "Preserve recursive shuffle collection root"
+          git push
+
   test:
     runs-on: ubuntu-latest
     env:
