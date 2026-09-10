@@ -58,6 +58,7 @@ jobs:
           gridplayer/dialogs/settings_sharpen.py
           gridplayer/utils/libvlc_options_parser.py
           gridplayer/utils/next_file.py
+          gridplayer/utils/playback_rate.py
           gridplayer/widgets/video_block.py
           gridplayer/player/player.py
           gridplayer/player/managers/settings.py
