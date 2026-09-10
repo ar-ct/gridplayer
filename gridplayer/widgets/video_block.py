@@ -737,7 +737,10 @@ class VideoBlock(QWidget):
         self.video_params = snapshot.model_copy()
 
     def set_video(self, video_params: Video):
-        if self.video_params is None or video_params is not self.video_params:
+        if self._shuffle_directory_root is not None and (
+            not video_params.is_local_file
+            or not video_params.uri.is_relative_to(self._shuffle_directory_root)
+        ):
             self._shuffle_directory_root = None
 
         is_first_video = self.video_params is None
@@ -1137,13 +1140,11 @@ class VideoBlock(QWidget):
     @only_initialized
     @only_local_file
     def previous_video(self):
-        self._shuffle_directory_root = None
         self.switch_video(previous_video_file(self.video_params.uri))
 
     @only_initialized
     @only_local_file
     def next_video(self):
-        self._shuffle_directory_root = None
         self.switch_video(next_video_file(self.video_params.uri))
 
     @only_initialized
