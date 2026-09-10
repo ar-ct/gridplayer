@@ -1,15 +1,7 @@
 from types import SimpleNamespace
 
 from gridplayer.params.actions import ACTIONS
-from gridplayer.utils.playback_rate import (
-    GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT,
-    GLOBAL_PLAYBACK_RATE_DECREASE_KEY,
-    GLOBAL_PLAYBACK_RATE_INCREASE_KEY,
-    GLOBAL_PLAYBACK_RATE_MAX_PERCENT,
-    GLOBAL_PLAYBACK_RATE_MIN_PERCENT,
-    GLOBAL_PLAYBACK_RATE_RESET_KEY,
-    GlobalPlaybackRateController,
-)
+from gridplayer.utils import playback_rate
 
 
 class DummyVideoBlock:
@@ -29,7 +21,7 @@ class DummyVideoBlock:
 
 def make_controller(blocks=()):
     current_blocks = list(blocks)
-    return GlobalPlaybackRateController(lambda: current_blocks), current_blocks
+    return playback_rate.GlobalPlaybackRateController(lambda: current_blocks), current_blocks
 
 
 def default_action_keys():
@@ -43,15 +35,15 @@ def default_action_keys():
 
 def test_requested_global_rate_hotkeys_are_unused_by_default_actions():
     keys = default_action_keys()
-    assert GLOBAL_PLAYBACK_RATE_INCREASE_KEY not in keys
-    assert GLOBAL_PLAYBACK_RATE_DECREASE_KEY not in keys
-    assert GLOBAL_PLAYBACK_RATE_RESET_KEY not in keys
+    assert playback_rate.GLOBAL_PLAYBACK_RATE_INCREASE_KEY not in keys
+    assert playback_rate.GLOBAL_PLAYBACK_RATE_DECREASE_KEY not in keys
+    assert playback_rate.GLOBAL_PLAYBACK_RATE_RESET_KEY not in keys
 
 
 def test_global_rate_defaults_to_100_percent():
     controller, _ = make_controller()
 
-    assert controller.percent == GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
+    assert controller.percent == playback_rate.GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
     assert controller.rate == 1.0
 
 
@@ -75,12 +67,12 @@ def test_global_rate_clamps_to_50_through_200_percent():
     controller, _ = make_controller((block,))
 
     controller.set_percent(10)
-    assert controller.percent == GLOBAL_PLAYBACK_RATE_MIN_PERCENT
+    assert controller.percent == playback_rate.GLOBAL_PLAYBACK_RATE_MIN_PERCENT
     assert controller.rate == 0.5
     assert block.video_params.rate == 0.5
 
     controller.set_percent(999)
-    assert controller.percent == GLOBAL_PLAYBACK_RATE_MAX_PERCENT
+    assert controller.percent == playback_rate.GLOBAL_PLAYBACK_RATE_MAX_PERCENT
     assert controller.rate == 2.0
     assert block.video_params.rate == 2.0
 
@@ -99,7 +91,7 @@ def test_global_rate_changes_in_exact_ten_percent_steps_and_resets():
 
     controller.set_percent(170)
     controller.reset()
-    assert controller.percent == GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
+    assert controller.percent == playback_rate.GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
     assert block.video_params.rate == 1.0
 
 
