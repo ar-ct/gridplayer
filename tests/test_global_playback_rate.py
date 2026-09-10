@@ -1,15 +1,7 @@
 from types import SimpleNamespace
 
 from gridplayer.params.actions import ACTIONS
-from gridplayer.player.player import (
-    GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT,
-    GLOBAL_PLAYBACK_RATE_DECREASE_KEY,
-    GLOBAL_PLAYBACK_RATE_INCREASE_KEY,
-    GLOBAL_PLAYBACK_RATE_MAX_PERCENT,
-    GLOBAL_PLAYBACK_RATE_MIN_PERCENT,
-    GLOBAL_PLAYBACK_RATE_RESET_KEY,
-    Player,
-)
+from gridplayer.player import player as player_module
 
 
 class DummyVideoBlock:
@@ -27,7 +19,9 @@ class DummyVideoBlock:
         self.set_rate_calls.append(rate)
 
 
-def make_dummy_player(blocks=(), *, percent=GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT):
+def make_dummy_player(
+    blocks=(), *, percent=player_module.GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
+):
     return SimpleNamespace(
         _global_playback_rate_percent=percent,
         _global_rate_known_block_ids=set(),
@@ -46,9 +40,9 @@ def default_action_keys():
 
 def test_requested_global_rate_hotkeys_are_unused_by_default_actions():
     keys = default_action_keys()
-    assert GLOBAL_PLAYBACK_RATE_INCREASE_KEY not in keys
-    assert GLOBAL_PLAYBACK_RATE_DECREASE_KEY not in keys
-    assert GLOBAL_PLAYBACK_RATE_RESET_KEY not in keys
+    assert player_module.GLOBAL_PLAYBACK_RATE_INCREASE_KEY not in keys
+    assert player_module.GLOBAL_PLAYBACK_RATE_DECREASE_KEY not in keys
+    assert player_module.GLOBAL_PLAYBACK_RATE_RESET_KEY not in keys
 
 
 def test_global_rate_is_applied_to_all_loaded_and_loading_blocks():
@@ -56,7 +50,7 @@ def test_global_rate_is_applied_to_all_loaded_and_loading_blocks():
     loading = DummyVideoBlock("loading", initialized=False)
     player = make_dummy_player((loaded, loading))
 
-    Player._set_global_playback_rate_percent(player, 130)
+    player_module.Player._set_global_playback_rate_percent(player, 130)
 
     assert player._global_playback_rate_percent == 130
     assert loaded.video_params.rate == 1.3
@@ -69,12 +63,18 @@ def test_global_rate_clamps_to_50_through_200_percent():
     block = DummyVideoBlock("block")
     player = make_dummy_player((block,))
 
-    Player._set_global_playback_rate_percent(player, 10)
-    assert player._global_playback_rate_percent == GLOBAL_PLAYBACK_RATE_MIN_PERCENT
+    player_module.Player._set_global_playback_rate_percent(player, 10)
+    assert (
+        player._global_playback_rate_percent
+        == player_module.GLOBAL_PLAYBACK_RATE_MIN_PERCENT
+    )
     assert block.video_params.rate == 0.5
 
-    Player._set_global_playback_rate_percent(player, 999)
-    assert player._global_playback_rate_percent == GLOBAL_PLAYBACK_RATE_MAX_PERCENT
+    player_module.Player._set_global_playback_rate_percent(player, 999)
+    assert (
+        player._global_playback_rate_percent
+        == player_module.GLOBAL_PLAYBACK_RATE_MAX_PERCENT
+    )
     assert block.video_params.rate == 2.0
 
 
@@ -82,17 +82,20 @@ def test_global_rate_changes_in_exact_ten_percent_steps_and_resets():
     block = DummyVideoBlock("block")
     player = make_dummy_player((block,))
 
-    Player._increase_global_playback_rate(player)
+    player_module.Player._increase_global_playback_rate(player)
     assert player._global_playback_rate_percent == 110
     assert block.video_params.rate == 1.1
 
-    Player._decrease_global_playback_rate(player)
+    player_module.Player._decrease_global_playback_rate(player)
     assert player._global_playback_rate_percent == 100
     assert block.video_params.rate == 1.0
 
-    Player._set_global_playback_rate_percent(player, 170)
-    Player._reset_global_playback_rate(player)
-    assert player._global_playback_rate_percent == GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
+    player_module.Player._set_global_playback_rate_percent(player, 170)
+    player_module.Player._reset_global_playback_rate(player)
+    assert (
+        player._global_playback_rate_percent
+        == player_module.GLOBAL_PLAYBACK_RATE_DEFAULT_PERCENT
+    )
     assert block.video_params.rate == 1.0
 
 
@@ -102,7 +105,7 @@ def test_new_blocks_inherit_current_runtime_rate_without_resetting_old_blocks():
     player = make_dummy_player((old, new), percent=140)
     player._global_rate_known_block_ids = {"old"}
 
-    Player._apply_global_rate_to_new_blocks(player)
+    player_module.Player._apply_global_rate_to_new_blocks(player)
 
     assert old.video_params.rate == 1.6
     assert old.set_rate_calls == []
@@ -116,7 +119,7 @@ def test_fresh_runtime_forces_new_blocks_back_to_100_percent():
     block = DummyVideoBlock("new-run", rate=1.8)
     player = make_dummy_player((block,))
 
-    Player._apply_global_rate_to_new_blocks(player)
+    player_module.Player._apply_global_rate_to_new_blocks(player)
 
     assert player._global_playback_rate_percent == 100
     assert block.video_params.rate == 1.0
