@@ -1,4 +1,6 @@
-from PyQt5.QtCore import pyqtSignal
+from functools import partial
+
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QShortcut, QWidget
 
@@ -25,6 +27,11 @@ from gridplayer.player.managers.stream_proxy import StreamProxyManager
 from gridplayer.player.managers.video_blocks import VideoBlocksManager
 from gridplayer.player.managers.video_driver import VideoDriverManager
 from gridplayer.player.managers.window_state import WindowStateManager
+from gridplayer.utils.cell_random import (
+    CELL_RANDOM_SHORTCUT_KEYS,
+    CellRandomController,
+    release_digit_seek_shortcuts,
+)
 from gridplayer.utils.playback_rate import (
     GLOBAL_PLAYBACK_RATE_DECREASE_KEY,
     GLOBAL_PLAYBACK_RATE_INCREASE_KEY,
@@ -199,6 +206,22 @@ class Player(QWidget, ManagersManager):
         self.random_next_all_shortcut = QShortcut(QKeySequence("Home"), self)
         self.random_next_all_shortcut.activated.connect(self._shuffle_all_videos)
 
+        # Custom build: bare digits 1-9 target a specific grid cell regardless
+        # of focus. Keep the old 10%-90% seek actions available from the menu,
+        # but release their bare digit shortcuts so Qt never sees ambiguity.
+        self.cell_random = CellRandomController(lambda: self._context.video_blocks)
+        self._reserve_cell_random_digit_shortcuts()
+        self._managers_inst["settings"].keymap_changed.connect(
+            self._reserve_cell_random_digit_shortcuts
+        )
+
+        self.cell_random_shortcuts = []
+        for cell_number, key in enumerate(CELL_RANDOM_SHORTCUT_KEYS, start=1):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WindowShortcut)
+            shortcut.activated.connect(partial(self.cell_random.shuffle_cell, cell_number))
+            self.cell_random_shortcuts.append(shortcut)
+
         # Custom build: one runtime-only playback rate for every cell. The
         # controller is deliberately not backed by Settings, so every process
         # starts at 100% and closing the application discards the current rate.
@@ -233,6 +256,9 @@ class Player(QWidget, ManagersManager):
             self.global_playback_rate.apply_to_new_blocks
         )
         self.global_playback_rate.apply_to_new_blocks()
+
+    def _reserve_cell_random_digit_shortcuts(self, _overrides=None):
+        release_digit_seek_shortcuts(self._context.actions)
 
     def _shuffle_all_videos(self):
         for video_block in self._context.video_blocks:
