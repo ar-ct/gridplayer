@@ -40,6 +40,7 @@ jobs:
           tests/test_local_file_path_forwarding.py
           tests/test_sharpen_filter.py
           tests/test_global_playback_rate.py
+          tests/test_cell_random.py
 
       - name: Run remaining test suite
         run: >-
@@ -50,12 +51,14 @@ jobs:
           --ignore=tests/test_local_file_path_forwarding.py
           --ignore=tests/test_sharpen_filter.py
           --ignore=tests/test_global_playback_rate.py
+          --ignore=tests/test_cell_random.py
 
       - name: Lint modified Python modules
         run: >-
           uv run ruff check
           gridplayer/settings.py
           gridplayer/dialogs/settings_sharpen.py
+          gridplayer/utils/cell_random.py
           gridplayer/utils/libvlc_options_parser.py
           gridplayer/utils/next_file.py
           gridplayer/utils/playback_rate.py
@@ -66,6 +69,7 @@ jobs:
           tests/test_sharpen_filter.py
           tests/test_video_block_shuffle_root.py
           tests/test_global_playback_rate.py
+          tests/test_cell_random.py
 
   build_windows_x64:
     needs: test
@@ -95,6 +99,7 @@ jobs:
           tests/test_utils_next_file.py
           tests/test_video_block_shuffle_root.py
           tests/test_global_playback_rate.py
+          tests/test_cell_random.py
 
       - name: Install build tools
         uses: crazy-max/ghaction-chocolatey@v4
