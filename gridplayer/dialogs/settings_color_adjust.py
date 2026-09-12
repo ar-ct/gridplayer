@@ -52,19 +52,11 @@ class VideoAdjustControl(QGroupBox):
             )
         )
 
-        footer = QHBoxLayout()
-        hint = QLabel(
-            self.tr(
-                "100% is neutral. Applies to all playing videos. Changes are applied "
-                "after releasing a slider."
-            ),
-            self,
-        )
-        hint.setWordWrap(True)
         self.reset_button = QPushButton(self.tr("Reset"), self)
-        footer.addWidget(hint, 1)
-        footer.addWidget(self.reset_button)
-        layout.addLayout(footer)
+        reset_row = QHBoxLayout()
+        reset_row.addStretch(1)
+        reset_row.addWidget(self.reset_button)
+        layout.addLayout(reset_row)
 
         self.setValues(contrast_percent, saturation_percent)
 
