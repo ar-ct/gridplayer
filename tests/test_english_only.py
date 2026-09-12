@@ -47,7 +47,10 @@ def test_language_selector_is_removed_from_settings_dialog():
 
     remove_language_settings_ui(dialog)
 
-    labels = [dialog.section_index.item(i).text() for i in range(dialog.section_index.count())]
+    labels = [
+        dialog.section_index.item(i).text()
+        for i in range(dialog.section_index.count())
+    ]
     assert "Language" not in labels
     assert dialog.section_page.indexOf(language_page) == -1
     assert "player/language" not in dialog.settings_map
