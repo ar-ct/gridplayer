@@ -48,19 +48,9 @@ class SharpenControl(QGroupBox):
         row.addWidget(self.spinbox)
         row.addWidget(self.reset_button)
 
-        hint = QLabel(
-            self.tr(
-                "Applies to all playing videos. Changes are applied after releasing "
-                "the slider or finishing input. High-resolution video may use more CPU."
-            ),
-            self,
-        )
-        hint.setWordWrap(True)
-
         layout = QVBoxLayout(self)
         layout.addWidget(self.enable_checkbox)
         layout.addLayout(row)
-        layout.addWidget(hint)
 
         self.setValue(value)
 
