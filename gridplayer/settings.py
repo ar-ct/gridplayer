@@ -13,7 +13,6 @@ from gridplayer.models.recent_list import (
 )
 from gridplayer.models.resolver_patterns import ResolverPatterns
 from gridplayer.params import env
-from gridplayer.params.languages import get_system_language
 from gridplayer.params.static import (
     AudioChannelMode,
     ColorScheme,
@@ -43,7 +42,7 @@ _default_settings = {
     "player/stay_on_top": False,
     "player/show_overlay_border": False,
     "player/color_scheme": ColorScheme.SYSTEM,
-    "player/language": get_system_language(),
+    "player/language": "en_US",
     "player/keymap": KeymapOverrides({}),
     "player/recent_list_enabled": True,
     "player/recent_list_max_size": 10,
@@ -105,7 +104,7 @@ class _Settings:
         self._migrate_legacy_keys()
 
     def _migrate_legacy_keys(self):
-        """Rename obsolete setting keys once; write only new names."""
+        """Rename obsolete setting keys and enforce English-only UI state."""
         renames = {
             "playlist/disable_click_pause": "playlist/disable_mouse_click_events",
             "playlist/disable_wheel_seek": "playlist/disable_mouse_wheel_events",
@@ -115,6 +114,9 @@ class _Settings:
                 self.settings.setValue(new_key, self.settings.value(old_key))
             if self.settings.contains(old_key):
                 self.settings.remove(old_key)
+
+        if self.settings.value("player/language") != "en_US":
+            self.settings.setValue("player/language", "en_US")
 
     def get(self, setting):
         setting_type = type(_default_settings[setting])
