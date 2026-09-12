@@ -26,7 +26,18 @@ from gridplayer.utils.video_adjust import (
 
 @pytest.fixture(scope="module", autouse=True)
 def _qapp():
-    return QApplication.instance() or QApplication([])
+    app = QApplication.instance() or QApplication([])
+
+    # A previous Qt test module can release its QApplication while the Python
+    # Settings singleton still points at the QSettings C++ object owned by that
+    # application lifetime. Recreate only that stale test singleton.
+    if settings_module.SETTINGS is not None:
+        try:
+            settings_module.SETTINGS.settings.fileName()
+        except RuntimeError:
+            settings_module.SETTINGS = None
+
+    return app
 
 
 @pytest.fixture(autouse=True)
