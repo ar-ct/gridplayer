@@ -39,6 +39,7 @@ jobs:
           tests/test_video_block_shuffle_root.py
           tests/test_local_file_path_forwarding.py
           tests/test_sharpen_filter.py
+          tests/test_color_adjust.py
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
 
@@ -50,6 +51,7 @@ jobs:
           --ignore=tests/test_video_block_shuffle_root.py
           --ignore=tests/test_local_file_path_forwarding.py
           --ignore=tests/test_sharpen_filter.py
+          --ignore=tests/test_color_adjust.py
           --ignore=tests/test_global_playback_rate.py
           --ignore=tests/test_cell_random.py
 
@@ -58,15 +60,18 @@ jobs:
           uv run ruff check
           gridplayer/settings.py
           gridplayer/dialogs/settings_sharpen.py
+          gridplayer/dialogs/settings_color_adjust.py
           gridplayer/utils/cell_random.py
           gridplayer/utils/libvlc_options_parser.py
           gridplayer/utils/next_file.py
           gridplayer/utils/playback_rate.py
+          gridplayer/utils/video_adjust.py
           gridplayer/widgets/video_block.py
           gridplayer/player/player.py
           gridplayer/player/managers/settings.py
           gridplayer/player/managers/video_blocks.py
           tests/test_sharpen_filter.py
+          tests/test_color_adjust.py
           tests/test_video_block_shuffle_root.py
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
@@ -98,6 +103,7 @@ jobs:
           uv run pytest -q
           tests/test_utils_next_file.py
           tests/test_video_block_shuffle_root.py
+          tests/test_color_adjust.py
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
 
@@ -111,7 +117,7 @@ jobs:
           BUILD_ARCH: win64
         run: just build-win-package
 
-      - name: Smoke-test bundled VLC with Unicode long path and sharpen filter
+      - name: Smoke-test bundled VLC with Unicode long path and video filters
         run: python tests/windows_vlc_unicode_smoke.py dist/GridPlayer/libVLC
 
       - name: Upload Windows x64 packages
