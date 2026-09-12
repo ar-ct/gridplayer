@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -11,8 +12,6 @@ from gridplayer.dialogs.settings_color_adjust import (
 )
 from gridplayer.dialogs.settings_sharpen import attach_sharpen_control
 from gridplayer.params.static import VideoTransform
-from gridplayer.player.managers import settings as settings_manager_module
-from gridplayer.player.managers.settings import SettingsManager
 from gridplayer.utils import libvlc_options_parser, video_adjust
 from gridplayer.utils.video_adjust import (
     CONTRAST_SETTING,
@@ -209,6 +208,10 @@ def test_adjustment_settings_survive_settings_recreation(monkeypatch, tmp_path):
     assert reopened.get(SATURATION_SETTING) == 70
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Pre-build Windows tests do not have bundled libVLC available",
+)
 @pytest.mark.parametrize(
     (
         "result",
@@ -239,6 +242,9 @@ def test_dialog_close_reconciles_all_video_filters_with_at_most_one_reload(
     final_adjust,
     reloads,
 ):
+    from gridplayer.player.managers import settings as settings_manager_module
+    from gridplayer.player.managers.settings import SettingsManager
+
     cleared_sharpen = []
     cleared_adjust = []
     monkeypatch.setattr(
