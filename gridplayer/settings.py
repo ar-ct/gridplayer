@@ -48,6 +48,8 @@ _default_settings = {
     "player/recent_list_enabled": True,
     "player/recent_list_max_size": 10,
     "player/sharpen_sigma": 0.0,
+    "player/video_contrast": 100,
+    "player/video_saturation": 100,
     "playlist/grid_mode": GridMode.AUTO_ROWS,
     "playlist/grid_fit": True,
     "playlist/grid_size": 0,
