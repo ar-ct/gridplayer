@@ -42,6 +42,7 @@ jobs:
           tests/test_color_adjust.py
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
+          tests/test_english_only.py
 
       - name: Run remaining test suite
         run: >-
@@ -54,6 +55,7 @@ jobs:
           --ignore=tests/test_color_adjust.py
           --ignore=tests/test_global_playback_rate.py
           --ignore=tests/test_cell_random.py
+          --ignore=tests/test_english_only.py
 
       - name: Lint modified Python modules
         run: >-
@@ -62,6 +64,7 @@ jobs:
           gridplayer/dialogs/settings_sharpen.py
           gridplayer/dialogs/settings_color_adjust.py
           gridplayer/utils/cell_random.py
+          gridplayer/utils/english_only.py
           gridplayer/utils/libvlc_options_parser.py
           gridplayer/utils/next_file.py
           gridplayer/utils/playback_rate.py
@@ -75,6 +78,8 @@ jobs:
           tests/test_video_block_shuffle_root.py
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
+          tests/test_english_only.py
+          tests/windows_english_only_smoke.py
 
   build_windows_x64:
     needs: test
@@ -106,6 +111,7 @@ jobs:
           tests/test_color_adjust.py
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
+          tests/test_english_only.py
 
       - name: Install build tools
         uses: crazy-max/ghaction-chocolatey@v4
@@ -119,6 +125,9 @@ jobs:
 
       - name: Smoke-test bundled VLC with Unicode long path and video filters
         run: python tests/windows_vlc_unicode_smoke.py dist/GridPlayer/libVLC
+
+      - name: Verify English-only portable tree
+        run: python tests/windows_english_only_smoke.py dist/GridPlayer
 
       - name: Upload Windows x64 packages
         uses: actions/upload-artifact@v7
