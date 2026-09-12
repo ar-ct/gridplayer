@@ -16,6 +16,9 @@ PYINSTALLER_VERSION="6.17.0"
 
 mkdir -p "$BUILD_DIR"
 
+# Rebuild embedded resources from the English-only manifest before packaging.
+./scripts/qt_resources/build_resources.sh
+
 init_venv "$BUILD_DIR/venv-pyinstaller"
 
 # Reduce size by installing src version of pydantic
@@ -34,6 +37,11 @@ copy_with_app_vars "$SCRIPT_DIR/version_info.py" "$BUILD_DIR"
 copy_with_app_vars "$SCRIPT_DIR/pyinstaller_win.spec" "$BUILD_DIR/$APP_NAME.spec"
 
 pyinstaller --clean --noconfirm "$BUILD_DIR/$APP_NAME.spec"
+
+# English-only package: Qt translations are no longer loaded, and Streamlink uses
+# pycountry's core databases rather than its optional gettext locale catalogues.
+rm -rf "$DIST_DIR/$APP_NAME/_internal/PyQt5/Qt5/translations"
+rm -rf "$DIST_DIR/$APP_NAME/_internal/pycountry/locales"
 
 # Post-build
 # =============
