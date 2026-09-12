@@ -127,9 +127,14 @@ def main() -> int:
     if not (libvlc_dir / "libvlc.dll").is_file():
         raise FileNotFoundError(libvlc_dir / "libvlc.dll")
 
-    sharpen_plugin = libvlc_dir / "plugins" / "video_filter" / "libsharpen_plugin.dll"
-    if not sharpen_plugin.is_file():
-        raise FileNotFoundError(sharpen_plugin)
+    video_filter_dir = libvlc_dir / "plugins" / "video_filter"
+    required_plugins = {
+        "sharpen": video_filter_dir / "libsharpen_plugin.dll",
+        "adjust": video_filter_dir / "libadjust_plugin.dll",
+    }
+    for plugin_path in required_plugins.values():
+        if not plugin_path.is_file():
+            raise FileNotFoundError(plugin_path)
 
     test_root = Path(tempfile.gettempdir()) / "gridplayer-vlc-unicode-smoke"
     shutil.rmtree(test_root, ignore_errors=True)
@@ -140,12 +145,16 @@ def main() -> int:
             raise AssertionError(
                 f"Bundled libVLC did not parse the test media; duration={duration}"
             )
-        if "sharpen" not in filter_names:
-            raise AssertionError("Bundled libVLC does not expose the sharpen filter")
+
+        missing_filters = required_plugins.keys() - filter_names
+        if missing_filters:
+            raise AssertionError(
+                f"Bundled libVLC does not expose filters: {sorted(missing_filters)}"
+            )
 
         print(f"Bundled libVLC parsed Unicode long path ({len(str(media_path))} chars)")
         print(f"Parsed duration: {duration} ms")
-        print("Bundled libVLC exposes sharpen video filter")
+        print("Bundled libVLC exposes sharpen and adjust video filters")
         return 0
     finally:
         shutil.rmtree(test_root, ignore_errors=True)
