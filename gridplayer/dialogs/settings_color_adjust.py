@@ -12,7 +12,6 @@ from PyQt5.QtWidgets import (
 from gridplayer.utils.video_adjust import (
     VIDEO_ADJUST_DEFAULT_PERCENT,
     VIDEO_ADJUST_MAX_PERCENT,
-    VIDEO_ADJUST_MIN_PERCENT,
     VIDEO_ADJUST_STEP_PERCENT,
     normalize_video_adjust_percent,
 )
