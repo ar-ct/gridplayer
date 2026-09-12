@@ -8,6 +8,7 @@ from gridplayer.dialogs.settings_sharpen import SHARPEN_SETTING, attach_sharpen_
 from gridplayer.params.theme import apply_theme
 from gridplayer.player.managers.base import ManagerBase
 from gridplayer.settings import Settings
+from gridplayer.utils.english_only import remove_language_settings_ui
 from gridplayer.utils.libvlc_options_parser import (
     set_sharpen_preview,
     set_video_adjust_preview,
@@ -45,6 +46,7 @@ class SettingsManager(ManagerBase):
         previous_settings = Settings().get_all()
 
         dialog = SettingsDialog(self.parent())
+        remove_language_settings_ui(dialog)
         sharpen_control = attach_sharpen_control(
             dialog, Settings().get(SHARPEN_SETTING)
         )
@@ -176,7 +178,6 @@ class SettingsManager(ManagerBase):
 
     def _is_restart_needed(self, previous_settings):
         checks = {
-            "player/language",
             "logging/log_limit",
             "logging/log_limit_size",
             "logging/log_limit_backups",
