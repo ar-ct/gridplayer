@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import QApplication, QStyleFactory
 
 from gridplayer.main.init_icons import init_icon
 from gridplayer.main.init_resources import init_resources
-from gridplayer.main.init_translator import init_translator
 from gridplayer.params import env
 from gridplayer.params.static import FONT_SIZE_MAIN
 from gridplayer.params.theme import apply_theme, on_system_theme_changed
@@ -34,7 +33,5 @@ def init_app():
     init_icon(app)
 
     app.setFont(QFont("Hack", FONT_SIZE_MAIN))
-
-    init_translator(app)
 
     return app
