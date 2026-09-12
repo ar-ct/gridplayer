@@ -186,21 +186,16 @@ def test_control_is_inserted_on_video_page_after_sharpen():
 
 
 def test_adjustment_settings_survive_settings_recreation(monkeypatch, tmp_path):
-    old_settings = settings_module.SETTINGS
     monkeypatch.setattr(settings_module, "get_app_data_dir", lambda: tmp_path)
-    try:
-        settings_module.SETTINGS = None
-        current = settings_module.Settings()
-        current.set(CONTRAST_SETTING, 130)
-        current.set(SATURATION_SETTING, 70)
-        current.sync()
 
-        settings_module.SETTINGS = None
-        reopened = settings_module.Settings()
-        assert reopened.get(CONTRAST_SETTING) == 130
-        assert reopened.get(SATURATION_SETTING) == 70
-    finally:
-        settings_module.SETTINGS = old_settings
+    current = settings_module._Settings()
+    current.set(CONTRAST_SETTING, 130)
+    current.set(SATURATION_SETTING, 70)
+    current.sync()
+
+    reopened = settings_module._Settings()
+    assert reopened.get(CONTRAST_SETTING) == 130
+    assert reopened.get(SATURATION_SETTING) == 70
 
 
 @pytest.mark.parametrize(
