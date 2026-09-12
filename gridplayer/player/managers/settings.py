@@ -3,12 +3,21 @@ from PyQt5.QtWidgets import QDialog
 
 from gridplayer.dialogs.messagebox import QCustomMessageBox
 from gridplayer.dialogs.settings import SettingsDialog
+from gridplayer.dialogs.settings_color_adjust import attach_video_adjust_control
 from gridplayer.dialogs.settings_sharpen import SHARPEN_SETTING, attach_sharpen_control
 from gridplayer.params.theme import apply_theme
 from gridplayer.player.managers.base import ManagerBase
 from gridplayer.settings import Settings
-from gridplayer.utils.libvlc_options_parser import set_sharpen_preview
+from gridplayer.utils.libvlc_options_parser import (
+    set_sharpen_preview,
+    set_video_adjust_preview,
+)
 from gridplayer.utils.qt import translate
+from gridplayer.utils.video_adjust import (
+    CONTRAST_SETTING,
+    SATURATION_SETTING,
+    normalize_video_adjust_percent,
+)
 
 
 class SettingsManager(ManagerBase):
@@ -26,6 +35,7 @@ class SettingsManager(ManagerBase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._sharpen_preview_value: float | None = None
+        self._video_adjust_preview_value: tuple[int, int] | None = None
 
     @property
     def commands(self):
@@ -38,16 +48,31 @@ class SettingsManager(ManagerBase):
         sharpen_control = attach_sharpen_control(
             dialog, Settings().get(SHARPEN_SETTING)
         )
+        video_adjust_control = attach_video_adjust_control(
+            dialog,
+            Settings().get(CONTRAST_SETTING),
+            Settings().get(SATURATION_SETTING),
+        )
         self._sharpen_preview_value = None
+        self._video_adjust_preview_value = None
         sharpen_control.preview_requested.connect(self._apply_sharpen_preview)
+        video_adjust_control.preview_requested.connect(self._apply_video_adjust_preview)
 
         result = dialog.exec_()
         final_sharpen = sharpen_control.value()
+        final_video_adjust = video_adjust_control.values()
 
         if result == QDialog.Accepted:
             Settings().set(SHARPEN_SETTING, final_sharpen)
+            Settings().set(CONTRAST_SETTING, final_video_adjust[0])
+            Settings().set(SATURATION_SETTING, final_video_adjust[1])
 
-        self._finish_sharpen_preview(result, previous_settings, final_sharpen)
+        self._finish_video_filter_previews(
+            result,
+            previous_settings,
+            final_sharpen,
+            final_video_adjust,
+        )
         self._apply_settings(previous_settings)
 
         if self._is_restart_needed(previous_settings):
@@ -72,19 +97,50 @@ class SettingsManager(ManagerBase):
         set_sharpen_preview(value)
         self.reload_video_filters.emit()
 
-    def _finish_sharpen_preview(self, result, previous_settings, final_value):
-        original_value = float(previous_settings[SHARPEN_SETTING])
-        applied_value = (
-            original_value
-            if self._sharpen_preview_value is None
-            else self._sharpen_preview_value
+    def _apply_video_adjust_preview(self, contrast: int, saturation: int):
+        value = (
+            normalize_video_adjust_percent(contrast),
+            normalize_video_adjust_percent(saturation),
         )
-        desired_value = final_value if result == QDialog.Accepted else original_value
+        if value == self._video_adjust_preview_value:
+            return
+
+        self._video_adjust_preview_value = value
+        set_video_adjust_preview(value)
+        self.reload_video_filters.emit()
+
+    def _finish_video_filter_previews(
+        self,
+        result,
+        previous_settings,
+        final_sharpen,
+        final_video_adjust,
+    ):
+        original_sharpen = float(previous_settings[SHARPEN_SETTING])
+        original_video_adjust = (
+            int(previous_settings[CONTRAST_SETTING]),
+            int(previous_settings[SATURATION_SETTING]),
+        )
+        applied_state = (
+            original_sharpen
+            if self._sharpen_preview_value is None
+            else self._sharpen_preview_value,
+            original_video_adjust
+            if self._video_adjust_preview_value is None
+            else self._video_adjust_preview_value,
+        )
+        desired_state = (
+            (final_sharpen, final_video_adjust)
+            if result == QDialog.Accepted
+            else (original_sharpen, original_video_adjust)
+        )
 
         set_sharpen_preview(None)
+        set_video_adjust_preview(None)
         self._sharpen_preview_value = None
+        self._video_adjust_preview_value = None
 
-        if applied_value != desired_value:
+        if applied_state != desired_state:
             self.reload_video_filters.emit()
 
     def _apply_settings(self, previous_settings):
