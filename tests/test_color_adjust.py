@@ -86,7 +86,7 @@ def test_neutral_adjustment_adds_no_filter(monkeypatch):
     assert _vlc_options(monkeypatch) == []
 
 
-def test_adjustment_composes_with_transform_and_sharpen(monkeypatch):
+def test_adjustment_composes_with_transform_and_sharpen_in_safe_order(monkeypatch):
     options = _vlc_options(
         monkeypatch,
         contrast=120,
@@ -97,8 +97,29 @@ def test_adjustment_composes_with_transform_and_sharpen(monkeypatch):
 
     assert options == [
         "--video-filter=transform{type='hflip'}:"
-        "adjust{contrast=1.20,saturation=0.80}:sharpen{sigma=0.12}"
+        "sharpen{sigma=0.12}:adjust{contrast=1.20,saturation=0.80}"
     ]
+
+
+@pytest.mark.parametrize(
+    ("contrast", "saturation", "expected_adjust"),
+    [
+        (120, 100, "adjust{contrast=1.20,saturation=1.00}"),
+        (100, 120, "adjust{contrast=1.00,saturation=1.20}"),
+        (120, 80, "adjust{contrast=1.20,saturation=0.80}"),
+    ],
+)
+def test_sharpen_always_precedes_adjust_when_combined(
+    monkeypatch, contrast, saturation, expected_adjust
+):
+    options = _vlc_options(
+        monkeypatch,
+        contrast=contrast,
+        saturation=saturation,
+        sharpen=0.12,
+    )
+
+    assert options == [f"--video-filter=sharpen{{sigma=0.12}}:{expected_adjust}"]
 
 
 def test_adjustment_is_clamped_to_user_range(monkeypatch):

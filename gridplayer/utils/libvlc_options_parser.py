@@ -49,6 +49,20 @@ def get_vlc_options(video_params: Video | None):
         option_str = TransformMap[video_params.transform]
         video_filters.append(f"transform{{type='{option_str}'}}")
 
+    # Keep sharpen before the image-adjust filter. With the bundled VLC on
+    # Windows, the reverse order (adjust -> sharpen) can produce a black video
+    # output when both filters are active even though each filter works alone.
+    # This order also matches enabling Sharpen first and Image Adjust second in
+    # VLC's interactive filter chain.
+    sharpen_sigma = (
+        Settings().get("player/sharpen_sigma")
+        if _SHARPEN_PREVIEW is None
+        else _SHARPEN_PREVIEW
+    )
+    sharpen_sigma = max(0.0, min(float(sharpen_sigma), 2.0))
+    if sharpen_sigma > 0:
+        video_filters.append(f"sharpen{{sigma={sharpen_sigma:.2f}}}")
+
     contrast_percent, saturation_percent = (
         get_saved_video_adjust()
         if _VIDEO_ADJUST_PREVIEW is None
@@ -63,15 +77,6 @@ def get_vlc_options(video_params: Video | None):
         video_filters.append(
             f"adjust{{contrast={contrast:.2f},saturation={saturation:.2f}}}"
         )
-
-    sharpen_sigma = (
-        Settings().get("player/sharpen_sigma")
-        if _SHARPEN_PREVIEW is None
-        else _SHARPEN_PREVIEW
-    )
-    sharpen_sigma = max(0.0, min(float(sharpen_sigma), 2.0))
-    if sharpen_sigma > 0:
-        video_filters.append(f"sharpen{{sigma={sharpen_sigma:.2f}}}")
 
     if not video_filters:
         return []

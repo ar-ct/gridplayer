@@ -79,6 +79,7 @@ jobs:
           tests/test_global_playback_rate.py
           tests/test_cell_random.py
           tests/test_english_only.py
+          tests/windows_vlc_unicode_smoke.py
           tests/windows_english_only_smoke.py
 
   build_windows_x64:
@@ -123,8 +124,8 @@ jobs:
           BUILD_ARCH: win64
         run: just build-win-package
 
-      - name: Smoke-test bundled VLC with Unicode long path and video filters
-        run: python tests/windows_vlc_unicode_smoke.py dist/GridPlayer/libVLC
+      - name: Smoke-test bundled VLC with Unicode long path and combined video filters
+        run: uv run python tests/windows_vlc_unicode_smoke.py dist/GridPlayer/libVLC
 
       - name: Verify English-only portable tree
         run: python tests/windows_english_only_smoke.py dist/GridPlayer
