@@ -17,6 +17,7 @@ from gridplayer.player.managers import settings as settings_manager_module
 from gridplayer.player.managers.settings import SettingsManager
 from gridplayer.player.managers.video_blocks import VideoBlocksManager
 from gridplayer.utils import libvlc_options_parser
+from gridplayer.utils.video_adjust import CONTRAST_SETTING, SATURATION_SETTING
 from gridplayer.vlc_player.player_base import VlcPlayerBase
 from gridplayer.vlc_player.static import MediaInput
 
@@ -29,8 +30,10 @@ def _qapp():
 @pytest.fixture(autouse=True)
 def _clear_sharpen_preview():
     libvlc_options_parser.set_sharpen_preview(None)
+    libvlc_options_parser.set_video_adjust_preview(None)
     yield
     libvlc_options_parser.set_sharpen_preview(None)
+    libvlc_options_parser.set_video_adjust_preview(None)
 
 
 class _FakeSettings:
@@ -190,24 +193,36 @@ def test_sharpen_control_is_inserted_on_video_settings_page():
 def test_sharpen_dialog_close_refreshes_only_when_applied_state_must_change(
     monkeypatch, result, original, preview, final, reloads
 ):
-    cleared = []
+    cleared_sharpen = []
+    cleared_adjust = []
     monkeypatch.setattr(
-        settings_manager_module, "set_sharpen_preview", cleared.append
+        settings_manager_module, "set_sharpen_preview", cleared_sharpen.append
+    )
+    monkeypatch.setattr(
+        settings_manager_module, "set_video_adjust_preview", cleared_adjust.append
     )
     fake_manager = SimpleNamespace(
         _sharpen_preview_value=preview,
+        _video_adjust_preview_value=None,
         reload_video_filters=_FakeSignal(),
     )
 
-    SettingsManager._finish_sharpen_preview(
+    SettingsManager._finish_video_filter_previews(
         fake_manager,
         result,
-        {SHARPEN_SETTING: original},
+        {
+            SHARPEN_SETTING: original,
+            CONTRAST_SETTING: 100,
+            SATURATION_SETTING: 100,
+        },
         final,
+        (100, 100),
     )
 
-    assert cleared == [None]
+    assert cleared_sharpen == [None]
+    assert cleared_adjust == [None]
     assert fake_manager._sharpen_preview_value is None
+    assert fake_manager._video_adjust_preview_value is None
     assert fake_manager.reload_video_filters.calls == reloads
 
 
